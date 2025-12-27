@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { CheckCircle, XCircle, Loader2, Smartphone, UserCheck } from "lucide-react";
+import { Suspense } from "react";
 
-export default function MarkAttendancePage() {
+function MarkAttendanceContent() {
   const searchParams = useSearchParams();
   const studentId = searchParams.get("studentId");
   const { toast } = useToast();
@@ -168,5 +169,22 @@ export default function MarkAttendancePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function MarkAttendancePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-16 text-center">
+            <Loader2 className="h-16 w-16 mx-auto text-blue-500 mb-4 animate-spin" />
+            <p className="text-gray-600">Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <MarkAttendanceContent />
+    </Suspense>
   );
 }
