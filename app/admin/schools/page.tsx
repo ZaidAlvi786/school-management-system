@@ -853,6 +853,7 @@ export default function SchoolsPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </main>
     </div>
   );

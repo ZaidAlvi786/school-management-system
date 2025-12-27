@@ -117,7 +117,6 @@ export default function Sidebar() {
                     "h-5 w-5 transition-transform duration-200",
                     isActive ? "text-white" : "text-slate-400 group-hover:text-white group-hover:scale-110"
                   )}
-                  style={isActive ? {} : {}}
                 />
                 <span className="font-medium">{item.title}</span>
               </Link>

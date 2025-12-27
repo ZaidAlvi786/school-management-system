@@ -48,7 +48,7 @@ export default function TeacherAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
-  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "late">>({});
+  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "late" | "excused">>({});
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [isClassIncharge, setIsClassIncharge] = useState(false);
 
@@ -111,7 +111,7 @@ export default function TeacherAttendancePage() {
         setAttendanceRecords(data);
         
         // Initialize attendance status from existing records
-        const statusMap: Record<string, "present" | "absent" | "late"> = {};
+        const statusMap: Record<string, "present" | "absent" | "late" | "excused"> = {};
         const remarksMap: Record<string, string> = {};
         
         data.forEach((record: AttendanceRecord) => {

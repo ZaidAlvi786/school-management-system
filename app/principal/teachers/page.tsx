@@ -228,7 +228,7 @@ export default function PrincipalTeachersPage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Teacher</DialogTitle>
-                  <DialogDescription>Add a new teacher to your school. An invite will be sent if they don't have an account.</DialogDescription>
+                  <DialogDescription>Add a new teacher to your school. An invite will be sent if they don&apos;t have an account.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddTeacher} className="space-y-4">
                   <div className="space-y-2">
@@ -441,6 +441,7 @@ export default function PrincipalTeachersPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </main>
     </div>
   );

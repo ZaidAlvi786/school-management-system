@@ -200,6 +200,7 @@ export default function PrincipalSchoolsPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </main>
     </div>
   );

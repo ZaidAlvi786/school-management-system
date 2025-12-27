@@ -189,7 +189,7 @@ export default function TeacherQRCodesPage() {
                 ) : (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                     <p className="text-sm text-yellow-800">
-                      <strong>Note:</strong> Could not detect network IP. Make sure you're connected to WiFi and add <code className="bg-yellow-100 px-1 rounded">LOCAL_NETWORK_IP</code> to your <code className="bg-yellow-100 px-1 rounded">.env</code> file manually.
+                      <strong>Note:</strong> Could not detect network IP. Make sure you&apos;re connected to WiFi and add <code className="bg-yellow-100 px-1 rounded">LOCAL_NETWORK_IP</code> to your <code className="bg-yellow-100 px-1 rounded">.env</code> file manually.
                     </p>
                   </div>
                 )}

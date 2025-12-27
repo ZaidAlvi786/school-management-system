@@ -77,12 +77,12 @@ export async function POST(request: NextRequest) {
 
           const subjects = Object.entries(subjectGrades).map(([subjectId, percentages]) => ({
             name: "Subject",
-            grade: (percentages.reduce((a, b) => a + b, 0) / percentages.length).toFixed(2),
+            grade: percentages.reduce((a, b) => a + b, 0) / percentages.length,
           }));
 
           return {
             name: student.user?.name || "Unknown",
-            averageGrade: averageGrade.toFixed(2),
+            averageGrade: averageGrade,
             attendance: 85, // Placeholder
             subjects,
           };

@@ -18,9 +18,8 @@ const CampusSchema = new Schema<ICampus>(
     incharge: { type: Schema.Types.ObjectId, ref: "Teacher", required: false },
     principal: { type: Schema.Types.ObjectId, ref: "Principal", required: false },
   },
-  { 
-    timestamps: true,
-    strictPopulate: false 
+  {
+    timestamps: true
   }
 );
 

@@ -34,7 +34,7 @@ export default async function ParentDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Child Performance</CardTitle>
-              <CardDescription>View your child's academic performance</CardDescription>
+              <CardDescription>View your child&apos;s academic performance</CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/parent/performance">

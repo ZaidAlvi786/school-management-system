@@ -188,7 +188,7 @@ export default function AdminDashboard() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               Welcome back, {session?.user?.name}!
             </h1>
-            <p className="text-gray-600">Here's your school management overview.</p>
+            <p className="text-gray-600">Here&apos;s your school management overview.</p>
           </div>
 
           {/* Stats Cards */}

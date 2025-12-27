@@ -134,7 +134,7 @@ export default function TeacherDashboard() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               Welcome back, {session?.user?.name}!
             </h1>
-            <p className="text-gray-600">Here's your teaching overview for today.</p>
+            <p className="text-gray-600">Here&apos;s your teaching overview for today.</p>
           </div>
 
           {/* Stats Cards */}
@@ -204,7 +204,7 @@ export default function TeacherDashboard() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
-                <CardTitle>Today's Overview</CardTitle>
+                <CardTitle>Today&apos;s Overview</CardTitle>
               </div>
             </CardHeader>
             <CardContent>

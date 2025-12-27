@@ -374,7 +374,7 @@ export default function TeacherPaperGeneratorPage() {
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Enter syllabus information according to Punjab Board 2025 curriculum (e.g., "First 4 chapters", "Chapter 1-3", "Units 1-5"). The AI will generate questions based on Punjab Board 2025 curriculum standards.
+                      Enter syllabus information according to Punjab Board 2025 curriculum (e.g., &quot;First 4 chapters&quot;, &quot;Chapter 1-3&quot;, &quot;Units 1-5&quot;). The AI will generate questions based on Punjab Board 2025 curriculum standards.
                     </p>
                   </div>
 

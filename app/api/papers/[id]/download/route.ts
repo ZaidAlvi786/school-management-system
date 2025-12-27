@@ -40,7 +40,7 @@ export async function GET(
     const content = paper.generated_content;
     
     // Split content into paragraphs
-    const lines = content.split("\n").filter(line => line.trim());
+    const lines = content.split("\n").filter((line: string) => line.trim());
     
     const docParagraphs: Paragraph[] = [];
     
@@ -175,7 +175,7 @@ export async function GET(
     const buffer = await Packer.toBuffer(doc);
 
     // Return as downloadable .docx file
-    return new NextResponse(buffer, {
+    return new NextResponse(buffer as any, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="${paper.title.replace(/[^a-z0-9]/gi, "_")}.docx"`,
