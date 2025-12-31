@@ -274,3 +274,5 @@ export interface TeacherWithRelations extends Teacher {
   subjects?: Subject[];
 }
 
+
+

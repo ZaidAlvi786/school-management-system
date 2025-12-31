@@ -21,28 +21,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    // Get student record with full details
-    const { data: student, error } = await supabase
+    // Get student record
+    const { data: student } = await supabase
       .from('students')
-      .select('id, roll_number, admission_number, class_id, section_id, class:classes(name, level), section:sections(name)')
+      .select('id')
       .eq('user_id', studentUser.id)
       .single();
 
-    if (error || !student) {
+    if (!student) {
       return NextResponse.json({ error: "Student record not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      _id: student.id,
-      id: student.id,
-      rollNumber: student.roll_number,
-      admissionNumber: student.admission_number,
-      classId: student.class_id,
-      sectionId: student.section_id,
-      class: student.class,
-      section: student.section,
+    // Check if face data exists
+    const { data: faceData, error } = await supabase
+      .from('student_face_data')
+      .select('id')
+      .eq('student_id', student.id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+      throw error;
+    }
+
+    return NextResponse.json({ 
+      hasRegisteredFace: !!faceData,
+      studentId: student.id 
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

@@ -58,6 +58,16 @@ const adminNavItems: NavItem[] = [
   { title: "Warnings", href: "/admin/warnings", icon: BarChart3 },
 ];
 
+const studentNavItems: NavItem[] = [
+  { title: "Dashboard", href: "/student", icon: Home },
+  { title: "My Grades", href: "/student/grades", icon: BookOpen },
+  { title: "Attendance", href: "/student/attendance", icon: Calendar },
+  { title: "Homework", href: "/student/homework", icon: FileText },
+  { title: "Syllabus", href: "/student/syllabus", icon: BookOpen },
+  { title: "Materials", href: "/student/materials", icon: Upload },
+  { title: "Forecast", href: "/student/forecast", icon: BarChart3 },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -76,6 +86,9 @@ export default function Sidebar() {
   } else if (session.user.role === "admin") {
     navItems = adminNavItems;
     basePath = "/admin";
+  } else if (session.user.role === "student") {
+    navItems = studentNavItems;
+    basePath = "/student";
   } else {
     return null; // No sidebar for other roles yet
   }

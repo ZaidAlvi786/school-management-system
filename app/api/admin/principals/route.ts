@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import { sendInviteEmail } from "@/lib/email";
+import { sendInviteEmail, sendNotificationEmail } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   try {
@@ -118,11 +118,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if principal user exists
-    const { data: existingPrincipalUser } = await supabase
+    // Use maybeSingle() instead of single() to avoid errors when user doesn't exist
+    const { data: existingPrincipalUser, error: userCheckError } = await supabase
       .from('users')
       .select('id')
       .eq('email', email.toLowerCase())
-      .single();
+      .maybeSingle();
+    
+    // If there's an actual error (not just "no rows"), log it
+    if (userCheckError && userCheckError.code !== 'PGRST116') {
+      console.error(`[PRINCIPAL CREATE] Error checking for existing user:`, userCheckError);
+    }
 
     let principalUserId = existingPrincipalUser?.id;
     let principalId: string | null = null;
@@ -158,7 +164,7 @@ export async function POST(request: NextRequest) {
         }
         principalId = existingPrincipal.id;
       } else {
-        // Create principal record
+        // Create principal record for existing user
         const { data: newPrincipal, error: principalError } = await supabase
           .from('principals')
           .insert([{
@@ -175,13 +181,60 @@ export async function POST(request: NextRequest) {
           throw principalError;
         }
         principalId = newPrincipal.id;
+
+        // Get user details and school name for notification email
+        const { data: userDetails } = await supabase
+          .from('users')
+          .select('name, email')
+          .eq('id', existingPrincipalUser.id)
+          .single();
+
+        const { data: schoolData } = await supabase
+          .from('schools')
+          .select('name')
+          .eq('id', school.id)
+          .single();
+
+        // Send notification email to existing user
+        const loginUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/login`;
+        console.log(`[PRINCIPAL CREATE] ====== NOTIFICATION EMAIL SENDING START ======`);
+        console.log(`[PRINCIPAL CREATE] Email: ${userDetails?.email || email}`);
+        console.log(`[PRINCIPAL CREATE] Name: ${userDetails?.name || name || email.split("@")[0]}`);
+        console.log(`[PRINCIPAL CREATE] School: ${schoolData?.name || "N/A"}`);
+        console.log(`[PRINCIPAL CREATE] RESEND_API_KEY exists: ${!!process.env.RESEND_API_KEY}`);
+        console.log(`[PRINCIPAL CREATE] RESEND_FROM_EMAIL: ${process.env.RESEND_FROM_EMAIL || "not set"}`);
+        
+        try {
+          const emailResult = await sendNotificationEmail({
+            to: (userDetails?.email || email).toLowerCase(),
+            name: userDetails?.name || name || email.split("@")[0],
+            role: "principal",
+            schoolName: schoolData?.name || "",
+            loginUrl,
+          });
+
+          console.log(`[PRINCIPAL CREATE] Email result:`, JSON.stringify(emailResult, null, 2));
+
+          if (!emailResult.success) {
+            console.error(`[PRINCIPAL CREATE] ❌ Failed to send notification email:`, emailResult.error);
+          } else {
+            console.log(`[PRINCIPAL CREATE] ✅ Notification email sent successfully`);
+            console.log(`[PRINCIPAL CREATE] Email ID: ${emailResult.data?.id || "N/A"}`);
+          }
+        } catch (emailError: any) {
+          console.error(`[PRINCIPAL CREATE] ❌ Exception in notification email sending:`, emailError);
+          console.error(`[PRINCIPAL CREATE] Exception stack:`, emailError.stack);
+        }
+        console.log(`[PRINCIPAL CREATE] ====== NOTIFICATION EMAIL SENDING END ======`);
       }
     } else {
       // Principal doesn't exist - create user account
+      console.log(`[PRINCIPAL CREATE] Creating new principal account for: ${email.toLowerCase()}`);
       const emailName = name || email.split("@")[0];
       const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
+      console.log(`[PRINCIPAL CREATE] Creating user account...`);
       const { data: newPrincipalUser, error: userError } = await supabase
         .from('users')
         .insert([{
@@ -196,12 +249,22 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (userError) {
+        console.error(`[PRINCIPAL CREATE] Error creating user:`, userError);
+        // Check if it's a unique constraint violation (user already exists)
+        if (userError.code === '23505' || userError.message?.includes('duplicate') || userError.message?.includes('already exists')) {
+          return NextResponse.json(
+            { error: "User with this email already exists" },
+            { status: 400 }
+          );
+        }
         throw userError;
       }
 
+      console.log(`[PRINCIPAL CREATE] User created successfully with ID: ${newPrincipalUser.id}`);
       principalUserId = newPrincipalUser.id;
 
       // Create principal record
+      console.log(`[PRINCIPAL CREATE] Creating principal record...`);
       const { data: newPrincipal, error: principalError } = await supabase
         .from('principals')
         .insert([{
@@ -215,28 +278,54 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (principalError) {
+        console.error(`[PRINCIPAL CREATE] Error creating principal record:`, principalError);
         throw principalError;
       }
+      console.log(`[PRINCIPAL CREATE] Principal record created with ID: ${newPrincipal.id}`);
       principalId = newPrincipal.id;
 
-      // Send invite email with temporary password
+      // Get school name for email (like teachers do)
+      const { data: schoolData } = await supabase
+        .from('schools')
+        .select('name')
+        .eq('id', school.id)
+        .single();
+
+      // Send invite email with temporary password (same pattern as teachers)
       const loginUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/login`;
-      await sendInviteEmail({
-        to: email.toLowerCase(),
-        name: emailName.charAt(0).toUpperCase() + emailName.slice(1),
-        role: "principal",
-        temporaryPassword: tempPassword,
-        loginUrl,
-      });
+      console.log(`[PRINCIPAL CREATE] ====== EMAIL SENDING START ======`);
+      console.log(`[PRINCIPAL CREATE] Email: ${email.toLowerCase()}`);
+      console.log(`[PRINCIPAL CREATE] Name: ${emailName.charAt(0).toUpperCase() + emailName.slice(1)}`);
+      console.log(`[PRINCIPAL CREATE] School: ${schoolData?.name || "N/A"}`);
+      console.log(`[PRINCIPAL CREATE] RESEND_API_KEY exists: ${!!process.env.RESEND_API_KEY}`);
+      console.log(`[PRINCIPAL CREATE] RESEND_FROM_EMAIL: ${process.env.RESEND_FROM_EMAIL || "not set"}`);
+      
+      try {
+        const emailResult = await sendInviteEmail({
+          to: email.toLowerCase(),
+          name: emailName.charAt(0).toUpperCase() + emailName.slice(1),
+          role: "principal",
+          temporaryPassword: tempPassword,
+          schoolName: schoolData?.name || "",
+          loginUrl,
+        });
+
+        console.log(`[PRINCIPAL CREATE] Email result:`, JSON.stringify(emailResult, null, 2));
+
+        // Log email sending result
+        if (!emailResult.success) {
+          console.error(`[PRINCIPAL CREATE] ❌ Failed to send invite email:`, emailResult.error);
+        } else {
+          console.log(`[PRINCIPAL CREATE] ✅ Invite email sent successfully`);
+          console.log(`[PRINCIPAL CREATE] Email ID: ${emailResult.data?.id || "N/A"}`);
+        }
+      } catch (emailError: any) {
+        console.error(`[PRINCIPAL CREATE] ❌ Exception in email sending:`, emailError);
+        console.error(`[PRINCIPAL CREATE] Exception stack:`, emailError.stack);
+      }
+      console.log(`[PRINCIPAL CREATE] ====== EMAIL SENDING END ======`);
     }
 
-    // Update principal school if needed
-    if (principalId && existingPrincipalUser) {
-      await supabase
-        .from('principals')
-        .update({ school_id: school.id })
-        .eq('id', principalId);
-    }
 
     const { data: principalWithPopulate } = await supabase
       .from('principals')
@@ -244,9 +333,14 @@ export async function POST(request: NextRequest) {
       .eq('id', principalId)
       .single();
 
+    if (!principalWithPopulate) {
+      return NextResponse.json({ error: "Failed to retrieve created principal" }, { status: 500 });
+    }
+
     return NextResponse.json(principalWithPopulate);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Error in POST /api/admin/principals:", error);
+    return NextResponse.json({ error: error.message || "Failed to create principal" }, { status: 500 });
   }
 }
 

@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Server Actions are enabled by default in Next.js 14+
-}
+  webpack: (config, { isServer }) => {
+    // Fix for face-api.js trying to use Node.js modules in browser
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+    return config;
+  },
+};
 
-module.exports = nextConfig
-
+module.exports = nextConfig;

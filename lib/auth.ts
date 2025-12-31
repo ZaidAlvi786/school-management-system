@@ -62,6 +62,17 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // If redirecting to login, redirect to role-based dashboard instead
+      if (url === `${baseUrl}/login` || url === baseUrl) {
+        return baseUrl;
+      }
+      // Allow relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allow callback URLs on the same origin
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
   events: {

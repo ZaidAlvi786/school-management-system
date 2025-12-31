@@ -90,12 +90,26 @@ export default function PrincipalTeachersPage() {
 
       if (teachersRes.ok) {
         const teachersData = await teachersRes.json();
-        setTeachers(teachersData);
+        // Map Supabase 'id' to '_id' to match the interface
+        const mappedTeachers = teachersData.map((teacher: any) => ({
+          ...teacher,
+          _id: teacher.id || teacher._id,
+          assignedSubjects: (teacher.assignedSubjects || []).map((subject: any) => ({
+            ...subject,
+            _id: subject.id || subject._id,
+          })),
+        }));
+        setTeachers(mappedTeachers);
       }
 
       if (classesRes.ok) {
         const classesData = await classesRes.json();
-        setClasses(classesData);
+        // Map Supabase 'id' to '_id' to match the interface
+        const mappedClasses = classesData.map((cls: any) => ({
+          ...cls,
+          _id: cls.id || cls._id,
+        }));
+        setClasses(mappedClasses);
       }
     } catch (error) {
       toast({
@@ -302,8 +316,8 @@ export default function PrincipalTeachersPage() {
                 <div className="space-y-2">
                   <Label htmlFor="teacherId">Teacher</Label>
                   <Select
-                    value={formData.teacherId}
-                    onValueChange={(value) => setFormData({ ...formData, teacherId: value })}
+                    value={formData.teacherId || ""}
+                    onValueChange={(value) => setFormData({ ...formData, teacherId: value || "" })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select teacher" />
@@ -311,7 +325,7 @@ export default function PrincipalTeachersPage() {
                     <SelectContent>
                       {teachers.map((teacher) => (
                         <SelectItem key={teacher._id} value={teacher._id}>
-                          {teacher.user.name} ({teacher.user.email})
+                          {teacher.user?.name || "Unknown"} ({teacher.user?.email || "No email"})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -320,8 +334,8 @@ export default function PrincipalTeachersPage() {
                 <div className="space-y-2">
                   <Label htmlFor="classId">Class</Label>
                   <Select
-                    value={formData.classId}
-                    onValueChange={(value) => setFormData({ ...formData, classId: value })}
+                    value={formData.classId || ""}
+                    onValueChange={(value) => setFormData({ ...formData, classId: value || "" })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select class" />

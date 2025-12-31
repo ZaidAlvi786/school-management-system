@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, level, campusId, classInchargeId, sections } = body;
 
+    console.log("[CLASS CREATE] Request data:", { campusId, role: session.user.role, email: session.user.email });
+
     // If principal, verify campus belongs to them
     if (session.user.role === "principal") {
       const { data: principalUser } = await supabase
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
 
       const { data: principal } = await supabase
         .from('principals')
-        .select('id')
+        .select('id, school_id')
         .eq('user_id', principalUser.id)
         .single();
 
@@ -133,10 +135,41 @@ export async function POST(request: NextRequest) {
         .from('campuses')
         .select('id')
         .eq('principal_id', principal.id)
-        .single();
+        .maybeSingle();
 
-      if (!principalCampus || principalCampus.id !== campusId) {
-        return NextResponse.json({ error: "Unauthorized. You can only create classes in your campus." }, { status: 403 });
+      console.log("[CLASS CREATE] Principal campus check:", { 
+        principalId: principal.id, 
+        principalCampus: principalCampus?.id, 
+        requestedCampusId: campusId,
+        schoolId: principal.school_id 
+      });
+
+      // If principal has a specific campus, verify the campusId matches
+      if (principalCampus) {
+        // Normalize IDs to strings for comparison
+        const principalCampusId = String(principalCampus.id);
+        const requestedCampusId = String(campusId);
+        
+        if (principalCampusId !== requestedCampusId) {
+          console.log("[CLASS CREATE] Campus ID mismatch:", { principalCampusId, requestedCampusId });
+          return NextResponse.json({ error: "Unauthorized. You can only create classes in your campus." }, { status: 403 });
+        }
+      } else {
+        // Principal not assigned to a specific campus - check if they're assigned to the school
+        if (principal.school_id) {
+          // Verify the campus belongs to the principal's school
+          const { data: campus } = await supabase
+            .from('campuses')
+            .select('school_id')
+            .eq('id', campusId)
+            .single();
+
+          if (!campus || campus.school_id !== principal.school_id) {
+            return NextResponse.json({ error: "Unauthorized. You can only create classes in campuses of your school." }, { status: 403 });
+          }
+        } else {
+          return NextResponse.json({ error: "Unauthorized. You are not assigned to a campus or school." }, { status: 403 });
+        }
       }
 
       // Verify class incharge teacher belongs to principal's campus
@@ -173,6 +206,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Convert teacher id to user_id for database insert (class_incharge_id references users.id, not teachers.id)
+    let classInchargeUserId: string | null = null;
+    if (classInchargeId) {
+      const { data: teacher } = await supabase
+        .from('teachers')
+        .select('user_id')
+        .eq('id', classInchargeId)
+        .single();
+
+      if (teacher) {
+        classInchargeUserId = teacher.user_id;
+      } else {
+        return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
+      }
+    }
+
     // Create class
     const { data: classDoc, error: classError } = await supabase
       .from('classes')
@@ -180,7 +229,7 @@ export async function POST(request: NextRequest) {
         name,
         level,
         campus_id: campusId,
-        class_incharge_id: classInchargeId || null,
+        class_incharge_id: classInchargeUserId,
       }])
       .select()
       .single();
@@ -274,7 +323,7 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized. You can only edit classes in your campus." }, { status: 403 });
       }
 
-      // Verify class incharge teacher belongs to principal's campus
+      // Verify class incharge teacher belongs to principal's campus and convert teacher id to user_id
       if (classInchargeId) {
         const { data: teacher } = await supabase
           .from('teachers')
@@ -282,27 +331,45 @@ export async function PUT(request: NextRequest) {
           .eq('id', classInchargeId)
           .single();
 
-        if (teacher) {
-          const { data: classesInCampus } = await supabase
-            .from('classes')
+        if (!teacher) {
+          return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
+        }
+        
+        const { data: classesInCampus } = await supabase
+          .from('classes')
+          .select('id')
+          .eq('campus_id', principalCampus.id);
+
+        const classIds = (classesInCampus || []).map(c => c.id);
+        
+        if (classIds.length > 0) {
+          const { data: subjectWithTeacher } = await supabase
+            .from('subjects')
             .select('id')
-            .eq('campus_id', principalCampus.id);
+            .eq('teacher_id', teacher.user_id)
+            .in('class_id', classIds)
+            .single();
 
-          const classIds = (classesInCampus || []).map(c => c.id);
-          
-          if (classIds.length > 0) {
-            const { data: subjectWithTeacher } = await supabase
-              .from('subjects')
-              .select('id')
-              .eq('teacher_id', teacher.user_id)
-              .in('class_id', classIds)
-              .single();
-
-            if (!subjectWithTeacher) {
-              return NextResponse.json({ error: "Class incharge teacher must be assigned to a subject in your campus." }, { status: 403 });
-            }
+          if (!subjectWithTeacher) {
+            return NextResponse.json({ error: "Class incharge teacher must be assigned to a subject in your campus." }, { status: 403 });
           }
         }
+      }
+    }
+
+    // Convert teacher id to user_id for database update (class_incharge_id references users.id, not teachers.id)
+    let classInchargeUserId: string | null = null;
+    if (classInchargeId) {
+      const { data: teacher } = await supabase
+        .from('teachers')
+        .select('user_id')
+        .eq('id', classInchargeId)
+        .single();
+
+      if (teacher) {
+        classInchargeUserId = teacher.user_id;
+      } else {
+        return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
       }
     }
 
@@ -311,7 +378,7 @@ export async function PUT(request: NextRequest) {
       .update({
         name,
         level,
-        class_incharge_id: classInchargeId || null,
+        class_incharge_id: classInchargeUserId,
       })
       .eq('id', id)
       .select('*, campus:campuses(name, school_id), class_incharge:users(name, email)')

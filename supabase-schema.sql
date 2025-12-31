@@ -374,3 +374,5 @@ CREATE TRIGGER update_domains_updated_at BEFORE UPDATE ON domains FOR EACH ROW E
 CREATE TRIGGER update_admin_domains_updated_at BEFORE UPDATE ON admin_domains FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_admin_domain_requests_updated_at BEFORE UPDATE ON admin_domain_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+
+

@@ -95,25 +95,45 @@ export default function PrincipalClassesPage() {
 
       if (classesRes.ok) {
         const classesData = await classesRes.json();
-        setClasses(classesData);
+        // Map Supabase 'id' to '_id' to match the interface
+        const mappedClasses = classesData.map((cls: any) => ({
+          ...cls,
+          _id: cls.id || cls._id,
+          sections: (cls.sections || []).map((section: any) => ({
+            ...section,
+            _id: section.id || section._id,
+            currentStrength: section.current_strength || section.currentStrength || 0,
+          })),
+        }));
+        setClasses(mappedClasses);
       }
 
       if (campusesRes.ok) {
         const campusesData = await campusesRes.json();
-        setCampuses(campusesData);
+        // Map Supabase 'id' to '_id' to match the interface
+        const mappedCampuses = campusesData.map((campus: any) => ({
+          ...campus,
+          _id: campus.id || campus._id,
+        }));
+        setCampuses(mappedCampuses);
         // Set principal's campus ID (should be only one)
-        if (campusesData.length > 0) {
-          setPrincipalCampusId(campusesData[0]._id);
+        if (mappedCampuses.length > 0) {
+          setPrincipalCampusId(mappedCampuses[0]._id);
           // Auto-set campus in form if not set
           if (!formData.campusId) {
-            setFormData({ ...formData, campusId: campusesData[0]._id });
+            setFormData({ ...formData, campusId: mappedCampuses[0]._id });
           }
         }
       }
 
       if (teachersRes.ok) {
         const teachersData = await teachersRes.json();
-        setTeachers(teachersData);
+        // Map Supabase 'id' to '_id' to match the interface
+        const mappedTeachers = teachersData.map((teacher: any) => ({
+          ...teacher,
+          _id: teacher.id || teacher._id,
+        }));
+        setTeachers(mappedTeachers);
       }
     } catch (error) {
       toast({
@@ -406,7 +426,7 @@ export default function PrincipalClassesPage() {
                             setSelectedClassForIncharge(cls);
                             // Find the teacher ID from the teachers list
                             const currentIncharge = teachers.find(t => 
-                              cls.classIncharge?.user?.email === t.user.email
+                              cls.classIncharge?.user?.email === t.user?.email
                             );
                             setInchargeTeacherId(currentIncharge?._id || "__none__");
                           } else {
@@ -424,7 +444,7 @@ export default function PrincipalClassesPage() {
                               setSelectedClassForIncharge(cls);
                               // Find the teacher ID from the teachers list
                               const currentIncharge = teachers.find(t => 
-                                cls.classIncharge?.user?.email === t.user.email
+                                cls.classIncharge?.user?.email === t.user?.email
                               );
                               setInchargeTeacherId(currentIncharge?._id || "__none__");
                             }}
@@ -444,8 +464,8 @@ export default function PrincipalClassesPage() {
                             <div className="space-y-2">
                               <Label htmlFor="inchargeTeacher">Teacher</Label>
                               <Select
-                                value={inchargeTeacherId}
-                                onValueChange={setInchargeTeacherId}
+                                value={inchargeTeacherId || "__none__"}
+                                onValueChange={(value) => setInchargeTeacherId(value || "__none__")}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select teacher" />
@@ -454,7 +474,7 @@ export default function PrincipalClassesPage() {
                                   <SelectItem value="__none__">None (Remove incharge)</SelectItem>
                                   {teachers.map((teacher) => (
                                     <SelectItem key={teacher._id} value={teacher._id}>
-                                      {teacher.user.name} ({teacher.user.email})
+                                      {teacher.user?.name || "Unknown"} ({teacher.user?.email || "No email"})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
