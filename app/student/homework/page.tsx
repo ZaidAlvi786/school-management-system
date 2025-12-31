@@ -295,7 +295,7 @@ export default function StudentHomeworkPage() {
                       <FileText className="h-10 w-10 md:h-12 md:w-12 text-white" />
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">No Homework</h3>
-                    <p className="text-gray-600 text-sm md:text-base">You're all caught up! No pending assignments.</p>
+                    <p className="text-gray-600 text-sm md:text-base">You&apos;re all caught up! No pending assignments.</p>
                   </div>
                 </CardContent>
               </Card>

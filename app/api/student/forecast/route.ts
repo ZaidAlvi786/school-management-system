@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     // Get student record
     const { data: student } = await supabase
       .from('students')
-      .select('id')
+      .select('id, class_id')
       .eq('user_id', studentUser.id)
       .single();
 

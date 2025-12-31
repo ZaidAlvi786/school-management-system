@@ -264,9 +264,9 @@ export default function FaceAttendanceDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Mark Today's Attendance</DialogTitle>
+          <DialogTitle>Mark Today&apos;s Attendance</DialogTitle>
           <DialogDescription>
-            Position your face in the circle and keep the camera steady. When the border turns green, click "Scan & Mark Attendance".
+            Position your face in the circle and keep the camera steady. When the border turns green, click &quot;Scan &amp; Mark Attendance&quot;.
           </DialogDescription>
         </DialogHeader>
 

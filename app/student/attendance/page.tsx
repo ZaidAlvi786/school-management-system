@@ -52,7 +52,6 @@ export default function StudentAttendancePage() {
     if (status === "authenticated") {
       fetchAttendance();
       checkFaceRegistration();
-      checkTodayAttendance();
     }
   }, [status]);
 
@@ -79,6 +78,7 @@ export default function StudentAttendancePage() {
 
   useEffect(() => {
     checkTodayAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attendance]);
 
   const fetchAttendance = async () => {

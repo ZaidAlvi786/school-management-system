@@ -40,6 +40,7 @@ export default function FaceRegistrationDialog({
     return () => {
       stopCamera();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const loadModels = async () => {
@@ -254,7 +255,7 @@ export default function FaceRegistrationDialog({
         <DialogHeader>
           <DialogTitle>Register Your Face</DialogTitle>
           <DialogDescription>
-            Position your face in the circle and keep the camera steady. When the border turns green, click "Capture & Register".
+            Position your face in the circle and keep the camera steady. When the border turns green, click &quot;Capture &amp; Register&quot;.
           </DialogDescription>
         </DialogHeader>
 

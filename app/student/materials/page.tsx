@@ -64,11 +64,11 @@ export default function StudentMaterialsPage() {
   };
 
   const getFileIcon = (fileType?: string) => {
-    if (!fileType) return <FileText className="h-5 w-5" />;
+    if (!fileType) return <FileText className="h-5 w-5" aria-hidden="true" />;
     const type = fileType.toLowerCase();
-    if (type.includes("image")) return <Image className="h-5 w-5" />;
-    if (type.includes("video")) return <Video className="h-5 w-5" />;
-    return <FileText className="h-5 w-5" />;
+    if (type.includes("image")) return <Image className="h-5 w-5" aria-hidden="true" />;
+    if (type.includes("video")) return <Video className="h-5 w-5" aria-hidden="true" />;
+    return <FileText className="h-5 w-5" aria-hidden="true" />;
   };
 
   const getFileColor = (fileType?: string) => {

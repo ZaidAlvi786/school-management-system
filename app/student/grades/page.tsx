@@ -239,7 +239,7 @@ export default function StudentGradesPage() {
                               {grade.remarks && (
                                 <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border-l-4 border-blue-500">
                                   <p className="text-xs md:text-sm text-gray-700 italic">
-                                    "{grade.remarks}"
+                                    &quot;{grade.remarks}&quot;
                                   </p>
                                 </div>
                               )}
