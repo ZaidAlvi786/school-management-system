@@ -21,7 +21,7 @@ import Sidebar from "@/components/sidebar";
 import LoadingSpinner from "@/components/loading-spinner";
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Users, UserPlus, Loader2 } from "lucide-react";
+import { Plus, Users, UserPlus, Loader2, Calendar } from "lucide-react";
 
 interface Student {
   _id: string;
@@ -95,8 +95,22 @@ export default function TeacherStudentsPage() {
       const res = await fetch("/api/teacher/students");
       if (res.ok) {
         const data = await res.json();
-        setStudents(data.students || []);
-        setSections(data.sections || []);
+        // Map students data
+        const mappedStudents = (data.students || []).map((student: any) => ({
+          ...student,
+          _id: student.id || student._id,
+          rollNumber: student.roll_number || student.rollNumber,
+          admissionNumber: student.admission_number || student.admissionNumber,
+          dateOfBirth: student.date_of_birth || student.dateOfBirth,
+        }));
+        // Map sections data to convert id to _id and current_strength to currentStrength
+        const mappedSections = (data.sections || []).map((section: any) => ({
+          ...section,
+          _id: section.id || section._id,
+          currentStrength: section.current_strength || section.currentStrength || 0,
+        }));
+        setStudents(mappedStudents);
+        setSections(mappedSections);
         setIsClassIncharge(true);
       } else {
         const error = await res.json();
@@ -280,8 +294,8 @@ export default function TeacherStudentsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="sectionId">Section *</Label>
                   <Select
-                    value={formData.sectionId}
-                    onValueChange={(value) => setFormData({ ...formData, sectionId: value })}
+                    value={formData.sectionId || ""}
+                    onValueChange={(value) => setFormData({ ...formData, sectionId: value || "" })}
                     required
                   >
                     <SelectTrigger>
@@ -290,7 +304,7 @@ export default function TeacherStudentsPage() {
                     <SelectContent>
                       {sections.map((section) => (
                         <SelectItem key={section._id} value={section._id}>
-                          {section.name} ({section.currentStrength}/{section.capacity})
+                          {section.name} ({section.currentStrength || 0}/{section.capacity || 0})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -298,13 +312,17 @@ export default function TeacherStudentsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-                  <Input
-                    id="dateOfBirth"
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="dateOfBirth"
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      className="pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
+                      required
+                    />
+                    <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="address">Address</Label>

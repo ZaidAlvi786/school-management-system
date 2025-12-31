@@ -12,7 +12,7 @@ import { Lock, Mail, Loader2, ArrowRight, LogIn, UserPlus, User, Phone, Building
 import Link from "next/link";
 
 export default function LoginPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,13 +63,50 @@ export default function LoginPage() {
           description: "Invalid email or password",
           variant: "destructive",
         });
+        setLoading(false);
       } else {
-        toast({
-          title: "Success",
-          description: "Logged in successfully",
-        });
-        // Refresh to get updated session, then redirect will happen via useEffect
-        router.refresh();
+        // Update session to refresh it
+        await update();
+        
+        // Wait a moment for session to update, then check and redirect
+        setTimeout(async () => {
+          try {
+            const sessionResponse = await fetch('/api/auth/session');
+            const sessionData = await sessionResponse.json();
+            
+            if (sessionData?.user?.role) {
+              hasRedirected.current = true;
+              const role = sessionData.user.role;
+              
+              toast({
+                title: "Success",
+                description: "Logged in successfully",
+              });
+              
+              // Redirect based on role using window.location for reliable redirect
+              if (role === "admin") {
+                window.location.href = "/admin";
+              } else if (role === "principal") {
+                window.location.href = "/principal";
+              } else if (role === "teacher") {
+                window.location.href = "/teacher";
+              } else if (role === "student") {
+                window.location.href = "/student";
+              } else if (role === "parent") {
+                window.location.href = "/parent";
+              } else {
+                router.refresh();
+              }
+            } else {
+              // Fallback: refresh and let useEffect handle redirect
+              router.refresh();
+            }
+          } catch (err) {
+            // Fallback: refresh and let useEffect handle redirect
+            router.refresh();
+          }
+          setLoading(false);
+        }, 300);
       }
     } catch (error) {
       toast({
@@ -77,7 +114,6 @@ export default function LoginPage() {
         description: "Something went wrong",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -109,22 +145,26 @@ export default function LoginPage() {
   useEffect(() => {
     if (hasRedirected.current) return;
     
-    if (status === "authenticated" && session?.user) {
+    if (status === "authenticated" && session?.user?.role) {
       hasRedirected.current = true;
       const role = session.user.role;
-      if (role === "admin") {
-        router.push("/admin");
-      } else if (role === "principal") {
-        router.push("/principal");
-      } else if (role === "teacher") {
-        router.push("/teacher");
-      } else if (role === "student") {
-        router.push("/student");
-      } else if (role === "parent") {
-        router.push("/parent");
-      }
+      
+      // Small delay to ensure session is fully established
+      setTimeout(() => {
+        if (role === "admin") {
+          router.push("/admin");
+        } else if (role === "principal") {
+          router.push("/principal");
+        } else if (role === "teacher") {
+          router.push("/teacher");
+        } else if (role === "student") {
+          router.push("/student");
+        } else if (role === "parent") {
+          router.push("/parent");
+        }
+      }, 100);
     }
-  }, [status, session]);
+  }, [status, session, router]);
 
   // Debounced domain check
   useEffect(() => {

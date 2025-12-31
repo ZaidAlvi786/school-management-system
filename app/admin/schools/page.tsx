@@ -186,7 +186,17 @@ export default function SchoolsPage() {
       const res = await fetch("/api/admin/schools");
       if (res.ok) {
         const data = await res.json();
-        setSchools(data);
+        // Map Supabase 'id' to '_id' to match the interface
+        const mappedData = data.map((school: any) => ({
+          ...school,
+          _id: school.id || school._id,
+          campuses: (school.campuses || []).map((campus: any) => ({
+            ...campus,
+            _id: campus.id || campus._id,
+          })),
+        }));
+        console.log("[FETCH SCHOOLS] Mapped data:", mappedData);
+        setSchools(mappedData);
       }
     } catch (error) {
       toast({
@@ -244,14 +254,39 @@ export default function SchoolsPage() {
     }
   };
 
-  const handleCreateCampus = async (e: React.FormEvent) => {
+  const handleCreateCampus = async (e: React.FormEvent, schoolId?: string) => {
     e.preventDefault();
-    if (!selectedSchool) return;
+    
+    // Use provided schoolId, or selectedSchool, or fallback to first school
+    const finalSchoolId = schoolId || selectedSchool || (schools.length > 0 ? schools[0]._id : null);
+    
+    console.log("[CAMPUS CREATE] Form submitted", { schoolId, selectedSchool, finalSchoolId, campusData, editingCampus, schoolsCount: schools.length });
+    
+    if (!finalSchoolId) {
+      console.error("[CAMPUS CREATE] No school available");
+      toast({
+        title: "Error",
+        description: "No school found. Please contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (!editingCampus && !campusData.principalEmail) {
+      console.error("[CAMPUS CREATE] No principal email provided");
       toast({
         title: "Error",
         description: "Please select a principal for this campus",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!campusData.name) {
+      console.error("[CAMPUS CREATE] Campus name is required");
+      toast({
+        title: "Error",
+        description: "Please enter a campus name",
         variant: "destructive",
       });
       return;
@@ -269,7 +304,7 @@ export default function SchoolsPage() {
         : {
             name: campusData.name,
             address: campusData.address,
-            schoolId: selectedSchool,
+            schoolId: finalSchoolId,
             principalEmail: campusData.principalEmail,
           };
 
@@ -601,7 +636,16 @@ export default function SchoolsPage() {
                       else setSelectedSchool(null);
                     }}>
                       <DialogTrigger asChild>
-                        <Button size="sm" className="bg-white text-blue-600 hover:bg-white/90 shadow-lg">
+                        <Button 
+                          size="sm" 
+                          className="bg-white text-blue-600 hover:bg-white/90 shadow-lg"
+                          onClick={() => {
+                            setSelectedSchool(school._id);
+                            setCampusData({ name: "", address: "", principalEmail: "" });
+                            setSelectedCampusPrincipal(null);
+                            setEditingCampus(null);
+                          }}
+                        >
                           <Plus className="mr-2 h-4 w-4" />
                           Add Campus
                         </Button>
@@ -613,7 +657,10 @@ export default function SchoolsPage() {
                           {editingCampus ? "Update campus information" : `Add a new campus to ${school.name}`}
                         </DialogDescription>
                       </DialogHeader>
-                      <form onSubmit={handleCreateCampus} className="space-y-4">
+                      <form onSubmit={(e) => {
+                        console.log("[FORM SUBMIT] School object:", school, "school._id:", school._id);
+                        handleCreateCampus(e, school._id);
+                      }} className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="campusName">Campus Name</Label>
                           <Input

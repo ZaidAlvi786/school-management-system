@@ -21,28 +21,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    // Get student record with full details
-    const { data: student, error } = await supabase
+    // Get student record
+    const { data: student } = await supabase
       .from('students')
-      .select('id, roll_number, admission_number, class_id, section_id, class:classes(name, level), section:sections(name)')
+      .select('id')
       .eq('user_id', studentUser.id)
       .single();
 
-    if (error || !student) {
+    if (!student) {
       return NextResponse.json({ error: "Student record not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      _id: student.id,
-      id: student.id,
-      rollNumber: student.roll_number,
-      admissionNumber: student.admission_number,
-      classId: student.class_id,
-      sectionId: student.section_id,
-      class: student.class,
-      section: student.section,
-    });
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date");
+
+    let query = supabase
+      .from('attendance')
+      .select('*, marked_by:users(name)')
+      .eq('student_id', student.id);
+
+    if (date) {
+      const dateStr = new Date(date).toISOString().split('T')[0];
+      query = query.eq('date', dateStr);
+    }
+
+    const { data: attendance, error } = await query.order('date', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json(attendance || []);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
