@@ -90,6 +90,18 @@ export default async function ParentDashboard() {
               </Link>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Settings</CardTitle>
+              <CardDescription>Manage your profile and account settings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/parent/profile">
+                <Button className="w-full">Profile Settings</Button>
+              </Link>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

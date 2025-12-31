@@ -18,6 +18,7 @@ import {
   Home,
   LogOut,
   QrCode,
+  Settings,
 } from "lucide-react";
 import LogoutButton from "./logout-button";
 
@@ -32,6 +33,7 @@ const principalNavItems: NavItem[] = [
   { title: "Schools", href: "/principal/schools", icon: Building2 },
   { title: "Classes", href: "/principal/classes", icon: GraduationCap },
   { title: "Teachers", href: "/principal/teachers", icon: UserCheck },
+  { title: "Profile Settings", href: "/principal/profile", icon: Settings },
 ];
 
 const teacherNavItems: NavItem[] = [
@@ -45,6 +47,7 @@ const teacherNavItems: NavItem[] = [
   { title: "AI Grading", href: "/teacher/ai-grading", icon: Brain },
   { title: "Syllabus", href: "/teacher/syllabus", icon: BookOpen },
   { title: "Materials", href: "/teacher/materials", icon: Upload },
+  { title: "Profile Settings", href: "/teacher/profile", icon: Settings },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -56,6 +59,7 @@ const adminNavItems: NavItem[] = [
   { title: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { title: "Insights", href: "/admin/insights", icon: Brain },
   { title: "Warnings", href: "/admin/warnings", icon: BarChart3 },
+  { title: "Profile Settings", href: "/admin/profile", icon: Settings },
 ];
 
 const studentNavItems: NavItem[] = [
@@ -66,6 +70,7 @@ const studentNavItems: NavItem[] = [
   { title: "Syllabus", href: "/student/syllabus", icon: BookOpen },
   { title: "Materials", href: "/student/materials", icon: Upload },
   { title: "Forecast", href: "/student/forecast", icon: BarChart3 },
+  { title: "Profile Settings", href: "/student/profile", icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -89,6 +94,9 @@ export default function Sidebar() {
   } else if (session.user.role === "student") {
     navItems = studentNavItems;
     basePath = "/student";
+  } else if (session.user.role === "parent") {
+    // Parent doesn't use sidebar, but we can add it if needed
+    return null;
   } else {
     return null; // No sidebar for other roles yet
   }
