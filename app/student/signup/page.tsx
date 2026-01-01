@@ -85,12 +85,12 @@ export default function StudentSignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-orange-600 via-amber-700 to-yellow-800 animate-gradient py-6 sm:py-8 md:py-12 px-3 sm:px-4">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-orange-600 via-amber-700 to-yellow-800 animate-gradient py-12 px-4">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-60 sm:w-80 h-60 sm:h-80 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float"></div>
-        <div className="absolute -bottom-40 -left-40 w-60 sm:w-80 h-60 sm:h-80 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: "2s" }}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-60 sm:w-80 h-60 sm:h-80 bg-amber-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: "4s" }}></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: "2s" }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-amber-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: "4s" }}></div>
       </div>
 
       {/* Floating Particles */}
@@ -109,31 +109,31 @@ export default function StudentSignupPage() {
         ))}
       </div>
 
-      <div className="relative z-10 w-full max-w-md px-3 sm:px-4">
+      <div className="relative z-10 w-full max-w-md px-4">
         <Card className="backdrop-blur-xl bg-white/95 shadow-2xl border-0 animate-slide-up">
-          <CardHeader className="space-y-3 sm:space-y-4 pb-6 sm:pb-8">
-            <div className="flex flex-col items-center space-y-3 sm:space-y-4">
+          <CardHeader className="space-y-4 pb-8">
+            <div className="flex flex-col items-center space-y-4">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-600 rounded-xl sm:rounded-2xl blur-lg opacity-50 animate-pulse-glow"></div>
-                <div className="relative p-3 sm:p-4 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl sm:rounded-2xl transform hover:scale-110 transition-transform duration-300">
-                  <BookOpen className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-600 rounded-2xl blur-lg opacity-50 animate-pulse-glow"></div>
+                <div className="relative p-4 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl transform hover:scale-110 transition-transform duration-300">
+                  <BookOpen className="h-10 w-10 text-white" />
                 </div>
               </div>
               <div className="text-center space-y-2">
-                <CardTitle className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
                   Create Student Account
                 </CardTitle>
-                <CardDescription className="text-sm sm:text-base">
+                <CardDescription className="text-base">
                   Start your learning journey
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 sm:space-y-6">
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+          <CardContent className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <User className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Label htmlFor="name" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <User className="h-4 w-4" />
                   Full Name
                 </Label>
                 <Input
@@ -144,7 +144,7 @@ export default function StudentSignupPage() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   onFocus={() => setFocusedField("name")}
                   onBlur={() => setFocusedField(null)}
-                  className={`text-sm sm:text-base transition-all duration-300 ${
+                  className={`transition-all duration-300 ${
                     focusedField === "name"
                       ? "ring-2 ring-orange-500 border-orange-500 shadow-lg"
                       : "border-gray-200"
@@ -154,8 +154,8 @@ export default function StudentSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Label htmlFor="email" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
                   Email Address
                 </Label>
                 <div className="relative group">
@@ -167,22 +167,22 @@ export default function StudentSignupPage() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     onFocus={() => setFocusedField("email")}
                     onBlur={() => setFocusedField(null)}
-                    className={`pl-9 sm:pl-10 text-sm sm:text-base transition-all duration-300 ${
+                    className={`pl-10 transition-all duration-300 ${
                       focusedField === "email"
                         ? "ring-2 ring-orange-500 border-orange-500 shadow-lg"
                         : "border-gray-200"
                     }`}
                     required
                   />
-                  <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
+                  <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 transition-colors ${
                     focusedField === "email" ? "text-orange-500" : "text-gray-400"
                   }`} />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Label htmlFor="phone" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
                   Phone Number (Optional)
                 </Label>
                 <Input
@@ -193,7 +193,7 @@ export default function StudentSignupPage() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   onFocus={() => setFocusedField("phone")}
                   onBlur={() => setFocusedField(null)}
-                  className={`text-sm sm:text-base transition-all duration-300 ${
+                  className={`transition-all duration-300 ${
                     focusedField === "phone"
                       ? "ring-2 ring-orange-500 border-orange-500 shadow-lg"
                       : "border-gray-200"
@@ -202,8 +202,8 @@ export default function StudentSignupPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Label htmlFor="password" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
                   Password
                 </Label>
                 <div className="relative group">
@@ -215,22 +215,22 @@ export default function StudentSignupPage() {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     onFocus={() => setFocusedField("password")}
                     onBlur={() => setFocusedField(null)}
-                    className={`pl-9 sm:pl-10 text-sm sm:text-base transition-all duration-300 ${
+                    className={`pl-10 transition-all duration-300 ${
                       focusedField === "password"
                         ? "ring-2 ring-orange-500 border-orange-500 shadow-lg"
                         : "border-gray-200"
                     }`}
                     required
                   />
-                  <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
+                  <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 transition-colors ${
                     focusedField === "password" ? "text-orange-500" : "text-gray-400"
                   }`} />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
                   Confirm Password
                 </Label>
                 <div className="relative group">
@@ -242,14 +242,14 @@ export default function StudentSignupPage() {
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     onFocus={() => setFocusedField("confirmPassword")}
                     onBlur={() => setFocusedField(null)}
-                    className={`pl-9 sm:pl-10 text-sm sm:text-base transition-all duration-300 ${
+                    className={`pl-10 transition-all duration-300 ${
                       focusedField === "confirmPassword"
                         ? "ring-2 ring-orange-500 border-orange-500 shadow-lg"
                         : "border-gray-200"
                     }`}
                     required
                   />
-                  <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
+                  <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 transition-colors ${
                     focusedField === "confirmPassword" ? "text-orange-500" : "text-gray-400"
                   }`} />
                 </div>
@@ -257,19 +257,18 @@ export default function StudentSignupPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 h-11 sm:h-12 text-sm sm:text-base font-semibold group"
+                className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 h-12 text-base font-semibold group"
                 disabled={loading}
               >
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                    <span className="hidden sm:inline">Creating account...</span>
-                    <span className="sm:hidden">Creating...</span>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Creating account...
                   </>
                 ) : (
                   <>
                     Create Account
-                    <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </Button>
@@ -287,11 +286,11 @@ export default function StudentSignupPage() {
             <div className="text-center">
               <Link
                 href="/student/login"
-                className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-orange-600 hover:text-orange-700 hover:gap-3 transition-all duration-300 group"
+                className="inline-flex items-center gap-2 text-sm font-medium text-orange-600 hover:text-orange-700 hover:gap-3 transition-all duration-300 group"
               >
-                <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 group-hover:-translate-x-1 transition-transform rotate-180" />
+                <ArrowRight className="h-4 w-4 group-hover:-translate-x-1 transition-transform rotate-180" />
                 Sign in instead
-                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4 group-hover:rotate-12 transition-transform" />
+                <Sparkles className="h-4 w-4 group-hover:rotate-12 transition-transform" />
               </Link>
             </div>
           </CardContent>
