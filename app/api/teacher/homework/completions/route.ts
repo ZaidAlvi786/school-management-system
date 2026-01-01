@@ -29,13 +29,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify teacher assigned this homework
-    const { data: homework } = await supabase
+    const { data: homework, error: homeworkCheckError } = await supabase
       .from('homework')
       .select('id, assigned_by_id')
       .eq('id', homeworkId)
       .single();
 
-    if (!homework || homework.assigned_by_id !== teacherUser.id) {
+    if (homeworkCheckError || !homework) {
+      console.error("Homework check error:", homeworkCheckError);
+      return NextResponse.json({ error: "Homework not found" }, { status: 404 });
+    }
+
+    // Check if teacher assigned this homework (compare as strings to handle UUID)
+    if (String(homework.assigned_by_id) !== String(teacherUser.id)) {
+      console.error("Authorization failed:", {
+        homeworkAssignedBy: homework.assigned_by_id,
+        teacherUserId: teacherUser.id,
+        homeworkId
+      });
       return NextResponse.json({ error: "Unauthorized to view this homework" }, { status: 403 });
     }
 

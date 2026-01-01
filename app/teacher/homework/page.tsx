@@ -27,6 +27,7 @@ import { Plus, BookOpen, Loader2, Sparkles, CheckCircle2, XCircle, Users, Eye } 
 
 interface Homework {
   _id: string;
+  id?: string; // Some APIs might return 'id' instead of '_id'
   title: string;
   description: string;
   subject: {
@@ -573,35 +574,38 @@ export default function TeacherHomeworkPage() {
 
         <div className="grid gap-6">
           {homework.length > 0 ? (
-            homework.map((hw) => (
-              <Card key={hw._id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle>{hw.title}</CardTitle>
-                      <CardDescription>
-                        {hw.subject?.name} - {hw.class?.name} {hw.section?.name || "All Sections"} | Due: {new Date(hw.dueDate).toLocaleDateString()}
-                      </CardDescription>
+            homework.map((hw) => {
+              const homeworkId = (hw as any)._id || (hw as any).id || hw._id;
+              return (
+                <Card key={homeworkId}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle>{hw.title}</CardTitle>
+                        <CardDescription>
+                          {hw.subject?.name} - {hw.class?.name} {hw.section?.name || "All Sections"} | Due: {new Date(hw.dueDate).toLocaleDateString()}
+                        </CardDescription>
+                      </div>
+                      <Button
+                        onClick={() => handleViewCompletions(homeworkId)}
+                        variant="outline"
+                        className="ml-4"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Completions
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => handleViewCompletions(hw._id)}
-                      variant="outline"
-                      className="ml-4"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Completions
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
-                      {hw.description}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
+                        {hw.description}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <Card>
               <CardContent className="py-16 text-center">

@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       const completion = completions?.find((c: any) => c.homework_id === hw.id);
       return {
         ...hw,
-        completion_status: completion?.status || 'pending',
+        completion_status: completion?.status || null, // null means not started yet
         completed_at: completion?.completed_at || null,
         approved_at: completion?.approved_at || null,
       };
