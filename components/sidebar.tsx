@@ -22,6 +22,7 @@ import {
   Settings,
   Menu,
   X,
+  Clock,
 } from "lucide-react";
 import LogoutButton from "./logout-button";
 
@@ -36,11 +37,14 @@ const principalNavItems: NavItem[] = [
   { title: "Schools", href: "/principal/schools", icon: Building2 },
   { title: "Classes", href: "/principal/classes", icon: GraduationCap },
   { title: "Teachers", href: "/principal/teachers", icon: UserCheck },
+  { title: "Teacher Attendance", href: "/principal/teacher-attendance", icon: Calendar },
+  { title: "Timetable", href: "/principal/timetable", icon: Clock },
   { title: "Profile Settings", href: "/principal/profile", icon: Settings },
 ];
 
 const teacherNavItems: NavItem[] = [
   { title: "Dashboard", href: "/teacher", icon: Home },
+  { title: "My Attendance", href: "/teacher/my-attendance", icon: Calendar },
   { title: "Students", href: "/teacher/students", icon: Users },
   { title: "Grades", href: "/teacher/grades", icon: BookOpen },
   { title: "Homework", href: "/teacher/homework", icon: FileText },
@@ -59,6 +63,8 @@ const adminNavItems: NavItem[] = [
   { title: "Principals", href: "/admin/principals", icon: UserCheck },
   { title: "Classes", href: "/admin/classes", icon: GraduationCap },
   { title: "Teachers", href: "/admin/teachers", icon: UserCheck },
+  { title: "Teacher Attendance", href: "/admin/teacher-attendance", icon: Calendar },
+  { title: "Timetable", href: "/admin/timetable", icon: Clock },
   { title: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { title: "Insights", href: "/admin/insights", icon: Brain },
   { title: "Warnings", href: "/admin/warnings", icon: BarChart3 },
