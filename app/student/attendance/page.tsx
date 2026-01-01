@@ -9,7 +9,7 @@ import LoadingSpinner from "@/components/loading-spinner";
 import { Calendar, CheckCircle2, XCircle, TrendingUp, Clock, Sparkles, UserPlus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import FaceRegistrationDialog from "@/components/face-registration-dialog";
+import FaceRegistrationDialog from "@/components/face-registration-dialog-simple";
 import FaceAttendanceDialog from "@/components/face-attendance-dialog";
 import FingerprintRegistrationDialog from "@/components/fingerprint-registration-dialog";
 import FingerprintAttendanceDialog from "@/components/fingerprint-attendance-dialog";
