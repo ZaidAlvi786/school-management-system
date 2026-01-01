@@ -22,31 +22,64 @@ export async function GET(request: NextRequest) {
     }
 
     // Get student record with class and section
-    const { data: student } = await supabase
+    const { data: student, error: studentError } = await supabase
       .from('students')
-      .select('class_id, section_id')
+      .select('id, class_id, section_id')
       .eq('user_id', studentUser.id)
       .single();
 
-    if (!student) {
+    if (studentError || !student) {
       return NextResponse.json({ error: "Student record not found" }, { status: 404 });
     }
 
-    // Get homework for student's class and section
-    const { data: homework, error } = await supabase
+    // Fetch homework for student's class
+    const { data: homework, error: homeworkError } = await supabase
       .from('homework')
-      .select('*, subject:subjects(name, code), class:classes(name), section:sections(name), assigned_by:users(name)')
+      .select(`
+        id,
+        title,
+        description,
+        due_date,
+        section_id,
+        subject:subjects(id, name, code),
+        class:classes(id, name),
+        section:sections(id, name),
+        assigned_by:users!homework_assigned_by_id_fkey(id, name)
+      `)
       .eq('class_id', student.class_id)
-      .eq('section_id', student.section_id)
       .order('due_date', { ascending: false });
 
-    if (error) {
-      throw error;
+    if (homeworkError) {
+      throw homeworkError;
     }
 
-    return NextResponse.json(homework || []);
+    // Filter homework: show if section_id is null (all sections) or matches student's section
+    const filteredHomework = (homework || []).filter((hw: any) => {
+      return !hw.section_id || hw.section_id === student.section_id;
+    });
+
+    // Get completion status for each homework
+    const homeworkIds = filteredHomework.map((hw: any) => hw.id);
+    const { data: completions } = await supabase
+      .from('homework_completions')
+      .select('homework_id, status, completed_at, approved_at')
+      .eq('student_id', student.id)
+      .in('homework_id', homeworkIds);
+
+    // Map completions to homework
+    const homeworkWithStatus = filteredHomework.map((hw: any) => {
+      const completion = completions?.find((c: any) => c.homework_id === hw.id);
+      return {
+        ...hw,
+        completion_status: completion?.status || 'pending',
+        completed_at: completion?.completed_at || null,
+        approved_at: completion?.approved_at || null,
+      };
+    });
+
+    return NextResponse.json(homeworkWithStatus);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Error fetching student homework:", error);
+    return NextResponse.json({ error: error.message || "Failed to fetch homework" }, { status: 500 });
   }
 }
-

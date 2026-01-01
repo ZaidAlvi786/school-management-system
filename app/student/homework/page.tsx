@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Sidebar from "@/components/sidebar";
 import LoadingSpinner from "@/components/loading-spinner";
-import { FileText, Calendar, BookOpen, Clock, User, Sparkles, AlertTriangle } from "lucide-react";
+import { FileText, Calendar, BookOpen, Clock, User, Sparkles, AlertTriangle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Homework {
   id: string;
@@ -28,12 +29,17 @@ interface Homework {
   section: {
     name: string;
   };
+  completion_status?: 'pending' | 'completed' | 'approved' | 'rejected';
+  completed_at?: string;
+  approved_at?: string;
 }
 
 export default function StudentHomeworkPage() {
   const { data: session, status } = useSession();
+  const { toast } = useToast();
   const [homework, setHomework] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
+  const [markingDone, setMarkingDone] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -82,6 +88,70 @@ export default function StudentHomeworkPage() {
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
+  };
+
+  const handleMarkAsDone = async (homeworkId: string) => {
+    try {
+      setMarkingDone(homeworkId);
+      const response = await fetch("/api/student/homework/mark-done", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ homeworkId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast({
+          title: "Success",
+          description: data.message || "Homework marked as done! Waiting for teacher approval.",
+        });
+        // Refresh homework list
+        fetchHomework();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.error || "Failed to mark homework as done",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to mark homework as done",
+        variant: "destructive",
+      });
+    } finally {
+      setMarkingDone(null);
+    }
+  };
+
+  const getStatusBadge = (homework: Homework) => {
+    if (homework.completion_status === 'approved') {
+      return (
+        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-lg">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Approved
+        </Badge>
+      );
+    }
+    if (homework.completion_status === 'completed' || homework.completion_status === 'pending') {
+      return (
+        <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg">
+          <Clock className="h-3 w-3 mr-1" />
+          Pending Approval
+        </Badge>
+      );
+    }
+    if (homework.completion_status === 'rejected') {
+      return (
+        <Badge className="bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 shadow-lg">
+          <XCircle className="h-3 w-3 mr-1" />
+          Rejected
+        </Badge>
+      );
+    }
+    return null;
   };
 
   if (status === "loading" || loading) {
@@ -277,6 +347,41 @@ export default function StudentHomeworkPage() {
                                     {item.assigned_by?.name || "Unknown Teacher"}
                                   </span>
                                 </div>
+                                {item.completion_status !== 'approved' && item.completion_status !== 'completed' && item.completion_status !== 'pending' && (
+                                  <div className="mt-4">
+                                    <Button
+                                      onClick={() => handleMarkAsDone(item.id)}
+                                      disabled={markingDone === item.id}
+                                      className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                                    >
+                                      {markingDone === item.id ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          Marking...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                                          Mark as Done
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                )}
+                                {item.completion_status === 'completed' || item.completion_status === 'pending' ? (
+                                  <div className="mt-4">
+                                    <p className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                                      ✓ Marked as done. Waiting for teacher approval.
+                                    </p>
+                                  </div>
+                                ) : null}
+                                {item.completion_status === 'approved' && item.approved_at ? (
+                                  <div className="mt-4">
+                                    <p className="text-sm text-green-600 bg-green-50 p-2 rounded-lg border border-green-200">
+                                      ✓ Approved on {new Date(item.approved_at).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </div>
