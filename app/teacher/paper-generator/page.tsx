@@ -21,7 +21,9 @@ import {
 import Sidebar from "@/components/sidebar";
 import LoadingSpinner from "@/components/loading-spinner";
 import { useToast } from "@/components/ui/use-toast";
-import { FileText, Upload, Download, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { FileText, Upload, Download, Loader2, Plus, Sparkles, X, BookOpen, CheckCircle2, Circle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Paper {
   _id: string;
@@ -57,11 +59,17 @@ export default function TeacherPaperGeneratorPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [syllabusTopics, setSyllabusTopics] = useState<any[]>([]);
+  const [selectedSyllabusTopics, setSelectedSyllabusTopics] = useState<string[]>([]);
+  const [loadingSyllabus, setLoadingSyllabus] = useState(false);
+  const [savedFormats, setSavedFormats] = useState<any[]>([]);
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     classId: "",
     subjectId: "",
     syllabusInfo: "",
+    term: "all" as 'all' | 'term1' | 'term2' | 'term3' | 'final',
   });
 
   useEffect(() => {
@@ -101,10 +109,25 @@ export default function TeacherPaperGeneratorPage() {
         const data = await res.json();
         // API returns { classes: [...] } or just the array
         const classesData = data.classes || (Array.isArray(data) ? data : []);
+        console.log("Fetched classes:", classesData);
         setClasses(Array.isArray(classesData) ? classesData : []);
+      } else {
+        const errorData = await res.json();
+        console.error("Error response:", errorData);
+        toast({
+          title: "Error",
+          description: errorData.error || "Failed to fetch classes",
+          variant: "destructive",
+        });
+        setClasses([]);
       }
     } catch (error) {
       console.error("Error fetching classes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch classes. Please try again.",
+        variant: "destructive",
+      });
       setClasses([]);
     }
   };
@@ -148,7 +171,16 @@ export default function TeacherPaperGeneratorPage() {
     if (!formData.title || !formData.classId || !formData.subjectId || !formData.syllabusInfo) {
       toast({
         title: "Missing Fields",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields and select at least one syllabus topic",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedSyllabusTopics.length === 0) {
+      toast({
+        title: "No Topics Selected",
+        description: "Please select at least one syllabus topic to include in the paper",
         variant: "destructive",
       });
       return;
@@ -162,8 +194,12 @@ export default function TeacherPaperGeneratorPage() {
       submitFormData.append("classId", formData.classId);
       submitFormData.append("subjectId", formData.subjectId);
       submitFormData.append("syllabusInfo", formData.syllabusInfo);
+      submitFormData.append("selectedSyllabusTopicIds", JSON.stringify(selectedSyllabusTopics));
       if (selectedFile) {
         submitFormData.append("sampleFile", selectedFile);
+      }
+      if (selectedFormat) {
+        submitFormData.append("savedFormatId", selectedFormat);
       }
 
       const res = await fetch("/api/papers", {
@@ -183,8 +219,11 @@ export default function TeacherPaperGeneratorPage() {
           classId: "",
           subjectId: "",
           syllabusInfo: "",
+          term: "all",
         });
         setSelectedFile(null);
+        setSelectedSyllabusTopics([]);
+        setSelectedFormat(null);
         fetchPapers();
       } else {
         const error = await res.json();
@@ -239,6 +278,66 @@ export default function TeacherPaperGeneratorPage() {
   };
 
   const selectedClass = Array.isArray(classes) ? classes.find((c) => c._id === formData.classId) : undefined;
+
+  const fetchSyllabus = async () => {
+    if (!formData.subjectId || !formData.classId) {
+      setSyllabusTopics([]);
+      setSelectedSyllabusTopics([]);
+      return;
+    }
+
+    setLoadingSyllabus(true);
+    try {
+      const response = await fetch(
+        `/api/teacher/paper/syllabus?subjectId=${formData.subjectId}&classId=${formData.classId}&term=${formData.term}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setSyllabusTopics(data.syllabus || []);
+        // Auto-select all topics by default
+        const allIds = (data.syllabus || []).map((item: any) => item.id);
+        setSelectedSyllabusTopics(allIds);
+      }
+    } catch (error) {
+      console.error("Failed to fetch syllabus:", error);
+    } finally {
+      setLoadingSyllabus(false);
+    }
+  };
+
+  const fetchSavedFormats = async () => {
+    if (!formData.subjectId || !formData.classId) return;
+
+    try {
+      const response = await fetch(
+        `/api/teacher/paper/saved-formats?subjectId=${formData.subjectId}&classId=${formData.classId}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setSavedFormats(data.formats || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch saved formats:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.subjectId && formData.classId) {
+      fetchSyllabus();
+      fetchSavedFormats();
+    }
+  }, [formData.subjectId, formData.classId, formData.term]);
+
+  // Update syllabus info when topics are selected
+  useEffect(() => {
+    if (selectedSyllabusTopics.length > 0) {
+      const selectedTopics = syllabusTopics
+        .filter((topic) => selectedSyllabusTopics.includes(topic.id))
+        .map((topic) => topic.topic)
+        .join(", ");
+      setFormData((prev) => ({ ...prev, syllabusInfo: selectedTopics }));
+    }
+  }, [selectedSyllabusTopics, syllabusTopics]);
 
   if (status === "loading" || loading) {
     return (
@@ -316,7 +415,10 @@ export default function TeacherPaperGeneratorPage() {
                       <Label htmlFor="subject">Subject *</Label>
                       <Select
                         value={formData.subjectId}
-                        onValueChange={(value) => setFormData({ ...formData, subjectId: value })}
+                        onValueChange={(value) => {
+                          setFormData({ ...formData, subjectId: value, syllabusInfo: "" });
+                          setSelectedSyllabusTopics([]);
+                        }}
                         required
                       >
                         <SelectTrigger>
@@ -333,6 +435,149 @@ export default function TeacherPaperGeneratorPage() {
                     </div>
                   )}
 
+                  {formData.subjectId && formData.classId && (
+                    <>
+                      <div>
+                        <Label htmlFor="term">Filter Syllabus by Term</Label>
+                        <Select
+                          value={formData.term}
+                          onValueChange={(value: any) => {
+                            setFormData({ ...formData, term: value });
+                            setSelectedSyllabusTopics([]);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Terms</SelectItem>
+                            <SelectItem value="term1">Term 1</SelectItem>
+                            <SelectItem value="term2">Term 2</SelectItem>
+                            <SelectItem value="term3">Term 3</SelectItem>
+                            <SelectItem value="final">Final Term</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Syllabus Topics Selection */}
+                      {loadingSyllabus ? (
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+                          <span className="ml-2 text-sm text-gray-600">Loading syllabus...</span>
+                        </div>
+                      ) : syllabusTopics.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label>Syllabus Topics *</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (selectedSyllabusTopics.length === syllabusTopics.length) {
+                                  setSelectedSyllabusTopics([]);
+                                } else {
+                                  setSelectedSyllabusTopics(syllabusTopics.map((t: any) => t.id));
+                                }
+                              }}
+                              className="text-xs"
+                            >
+                              {selectedSyllabusTopics.length === syllabusTopics.length ? "Deselect All" : "Select All"}
+                            </Button>
+                          </div>
+                          <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                            {syllabusTopics.map((topic: any) => (
+                              <div
+                                key={topic.id}
+                                className="flex items-start gap-2 p-2 rounded hover:bg-gray-50 transition-colors"
+                              >
+                                <Checkbox
+                                  id={`topic-${topic.id}`}
+                                  checked={selectedSyllabusTopics.includes(topic.id)}
+                                  onCheckedChange={(checked: boolean) => {
+                                    if (checked) {
+                                      setSelectedSyllabusTopics([...selectedSyllabusTopics, topic.id]);
+                                    } else {
+                                      setSelectedSyllabusTopics(selectedSyllabusTopics.filter((id) => id !== topic.id));
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`topic-${topic.id}`}
+                                  className="flex-1 cursor-pointer text-sm"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{topic.topic}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {topic.term === 'final' ? 'Final' : topic.term.toUpperCase().replace('TERM', 'Term ')}
+                                    </Badge>
+                                    {topic.is_completed && (
+                                      <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                    )}
+                                  </div>
+                                  {topic.description && (
+                                    <p className="text-xs text-gray-500 mt-1">{topic.description}</p>
+                                  )}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Selected {selectedSyllabusTopics.length} of {syllabusTopics.length} topics
+                          </p>
+                        </div>
+                      ) : formData.subjectId && formData.classId ? (
+                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            No syllabus topics found for this subject and class. Please add syllabus topics first.
+                          </p>
+                        </div>
+                      ) : null}
+
+                      {/* Saved Paper Formats */}
+                      {savedFormats.length > 0 && (
+                        <div>
+                          <Label>Use Saved Paper Format (Optional)</Label>
+                          <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
+                            {savedFormats.map((format) => (
+                              <div
+                                key={format.id}
+                                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                                  selectedFormat === format.id
+                                    ? "border-indigo-500 bg-indigo-50"
+                                    : "border-gray-200 hover:border-gray-300"
+                                }`}
+                                onClick={() => {
+                                  if (selectedFormat === format.id) {
+                                    setSelectedFormat(null);
+                                    setSelectedFile(null);
+                                  } else {
+                                    setSelectedFormat(format.id);
+                                    // Note: We'll use the format's sample_paper_url in the API
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-indigo-500" />
+                                  <span className="text-sm font-medium">{format.title}</span>
+                                  {selectedFormat === format.id && (
+                                    <CheckCircle2 className="h-4 w-4 text-indigo-500 ml-auto" />
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {format.subject?.name} • {format.class?.name}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Select a previously saved paper format to replicate its structure
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   <div>
                     <Label htmlFor="sampleFile">Sample Paper (Optional)</Label>
                     <div className="mt-2">
@@ -342,8 +587,9 @@ export default function TeacherPaperGeneratorPage() {
                         accept=".pdf,.doc,.docx,.txt"
                         onChange={handleFileChange}
                         className="cursor-pointer"
+                        disabled={!!selectedFormat}
                       />
-                      {selectedFile && (
+                      {selectedFile && !selectedFormat && (
                         <div className="mt-2 flex items-center gap-2 p-2 bg-blue-50 rounded">
                           <FileText className="h-4 w-4 text-blue-600" />
                           <span className="text-sm text-blue-800 flex-1">{selectedFile.name}</span>
@@ -357,9 +603,16 @@ export default function TeacherPaperGeneratorPage() {
                           </Button>
                         </div>
                       )}
+                      {selectedFormat && (
+                        <div className="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded">
+                          <p className="text-sm text-indigo-800">
+                            Using saved format from previous paper
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Upload a sample paper (PDF, DOCX, or TXT) to analyze its format. AI will deeply analyze the design, structure, title format, subtitle style, subject header, question numbering, marking scheme, and overall layout, then replicate it exactly in the generated paper.
+                      Upload a sample paper (PDF, DOCX, or TXT) to analyze its format, or select a saved format above. AI will analyze the design, structure, title format, subtitle style, subject header, question numbering, marking scheme, and overall layout, then replicate it exactly.
                     </p>
                   </div>
 
@@ -369,12 +622,12 @@ export default function TeacherPaperGeneratorPage() {
                       id="syllabusInfo"
                       value={formData.syllabusInfo}
                       onChange={(e) => setFormData({ ...formData, syllabusInfo: e.target.value })}
-                      placeholder="Enter syllabus topics, chapters, or content areas to cover in the paper..."
-                      rows={6}
+                      placeholder="Syllabus topics will be auto-filled from selected topics above, or enter manually..."
+                      rows={4}
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Enter syllabus information according to Punjab Board 2025 curriculum (e.g., &quot;First 4 chapters&quot;, &quot;Chapter 1-3&quot;, &quot;Units 1-5&quot;). The AI will generate questions based on Punjab Board 2025 curriculum standards.
+                      Syllabus topics are automatically selected from your syllabus. You can modify this text if needed. The AI will generate questions based on these topics following Punjab Board 2025 curriculum standards.
                     </p>
                   </div>
 
@@ -389,6 +642,7 @@ export default function TeacherPaperGeneratorPage() {
                           classId: "",
                           subjectId: "",
                           syllabusInfo: "",
+                          term: "all",
                         });
                         setSelectedFile(null);
                       }}

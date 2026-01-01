@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { data: teacher } = await supabase
+    const { data: teacherRecord } = await supabase
       .from('teachers')
       .select('id')
       .eq('user_id', teacherUser.id)
       .single();
 
-    if (!teacher) {
+    if (!teacherRecord) {
       return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
     }
 
@@ -81,6 +81,8 @@ export async function POST(request: NextRequest) {
     const subjectId = formData.get("subjectId") as string;
     const classId = formData.get("classId") as string;
     const syllabusInfo = formData.get("syllabusInfo") as string;
+    const selectedSyllabusTopicIds = formData.get("selectedSyllabusTopicIds") as string;
+    const savedFormatId = formData.get("savedFormatId") as string | null;
     const sampleFile = formData.get("sampleFile") as File | null;
 
     if (!title || !subjectId || !classId || !syllabusInfo) {
@@ -91,16 +93,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate subject and class belong to teacher
-    const { data: subject } = await supabase
+    // Query subjects table directly (it has both teacher_id and class_id)
+    const { data: subject, error: subjectError } = await supabase
       .from('subjects')
-      .select('name, teacher_id')
+      .select('id, name, code')
       .eq('id', subjectId)
       .eq('teacher_id', teacherUser.id)
+      .eq('class_id', classId)
       .single();
 
-    if (!subject) {
+    if (subjectError || !subject) {
       return NextResponse.json({ error: "Subject not found or not assigned to you" }, { status: 404 });
     }
+
+    const subjectName = subject.name;
 
     const { data: classDoc } = await supabase
       .from('classes')
@@ -112,10 +118,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    // Process sample file if provided
+    // Fetch detailed syllabus information if topic IDs provided
+    let detailedSyllabusInfo = syllabusInfo;
+    if (selectedSyllabusTopicIds) {
+      try {
+        const topicIds = JSON.parse(selectedSyllabusTopicIds);
+        if (Array.isArray(topicIds) && topicIds.length > 0) {
+          const { data: syllabusTopics } = await supabase
+            .from('syllabus')
+            .select('topic, description, term, is_completed')
+            .in('id', topicIds);
+
+          if (syllabusTopics && syllabusTopics.length > 0) {
+            // Create detailed syllabus description
+            const topicsByTerm = syllabusTopics.reduce((acc: any, topic: any) => {
+              if (!acc[topic.term]) acc[topic.term] = [];
+              acc[topic.term].push(topic);
+              return acc;
+            }, {});
+
+            detailedSyllabusInfo = Object.entries(topicsByTerm)
+              .map(([term, topics]: [string, any]) => {
+                const termName = term === 'final' ? 'Final Term' : term.toUpperCase().replace('TERM', 'Term ');
+                const topicList = topics.map((t: any) => 
+                  `- ${t.topic}${t.description ? ` (${t.description})` : ''}${t.is_completed ? ' [Completed]' : ''}`
+                ).join('\n');
+                return `${termName}:\n${topicList}`;
+              })
+              .join('\n\n');
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing syllabus topic IDs:", error);
+      }
+    }
+
+    // Process sample file or saved format
     let samplePaperUrl = "";
     let samplePaperText = "";
-    if (sampleFile) {
+    
+    // If saved format is selected, use that instead of uploaded file
+    if (savedFormatId) {
+      const { data: savedPaper } = await supabase
+        .from('papers')
+        .select('sample_paper_url, generated_content')
+        .eq('id', savedFormatId)
+        .eq('generated_by_id', teacherUser.id)
+        .single();
+
+      if (savedPaper && savedPaper.sample_paper_url) {
+        samplePaperUrl = savedPaper.sample_paper_url;
+        // Extract text from saved format if possible
+        if (savedPaper.generated_content) {
+          samplePaperText = `[SAVED_FORMAT_PAPER] - Use the following paper format as reference:\n\n${savedPaper.generated_content.substring(0, 2000)}...\n\nAnalyze the structure, format, layout, title placement, subtitle style, subject header, question numbering, marking scheme format, and overall design from this saved format.`;
+        } else {
+          samplePaperText = "[SAVED_FORMAT_PAPER] - A saved paper format has been selected. Analyze its structure, format, layout, title placement, subtitle style, subject header, question numbering, marking scheme format, and overall design, then replicate it exactly.";
+        }
+      }
+    } else if (sampleFile) {
       const bytes = await sampleFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
       const base64 = buffer.toString("base64");
@@ -150,13 +210,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate paper using AI with Punjab Board 2025 curriculum focus
-    const systemPrompt = `You are an expert teacher creating exam papers for Punjab Board curriculum 2025. You specialize in generating high-quality exam papers that strictly follow Punjab Board standards, format, and assessment patterns. When a sample paper is provided, you must perform deep analysis of its design, structure, formatting, and style, then replicate it EXACTLY.`;
+    const systemPrompt = `You are an expert teacher creating exam papers for Punjab Board curriculum 2025. You specialize in generating high-quality exam papers that strictly follow Punjab Board standards, format, and assessment patterns. When a sample paper or saved format is provided, you must perform deep analysis of its design, structure, formatting, and style, then replicate it EXACTLY. Always generate questions based on the provided syllabus topics.`;
     
     const prompt = `Generate an exam paper for Punjab Board curriculum 2025 based on the following requirements:
 
-SUBJECT: ${subject.name}
+SUBJECT: ${subjectName}
 CLASS: ${classDoc.name} (Level ${classDoc.level})
-SYLLABUS: ${syllabusInfo}
+
+SYLLABUS TOPICS TO COVER:
+${detailedSyllabusInfo}
+
+IMPORTANT: Generate questions ONLY from the syllabus topics listed above. Ensure all questions are directly related to these topics and follow Punjab Board 2025 curriculum standards.
 
 ${samplePaperText ? `=== SAMPLE PAPER PROVIDED - ANALYZE DEEPLY ===
 ${samplePaperText}
@@ -202,16 +266,17 @@ CRITICAL FORMAT ANALYSIS - REPLICATE EXACTLY:
    - Same font style indicators (bold for headers, etc.)
 
 5. CONTENT GENERATION (MUST FOLLOW THIS STRUCTURE):
-   - Q. 1: Generate exactly 12 MCQs based on syllabus: ${syllabusInfo}
-   - Q. 2: Generate exactly 8 short answer questions (students answer any 5)
-   - Q. 3: Generate exactly 8 short answer questions (students answer any 5)
+   - Q. 1: Generate exactly 12 MCQs based on the syllabus topics provided above
+   - Q. 2: Generate exactly 8 short answer questions (students answer any 5) covering the syllabus topics
+   - Q. 3: Generate exactly 8 short answer questions (students answer any 5) covering the syllabus topics
    - Q. 4, Q. 5, Q. 6: Generate exactly 3 long questions, each with:
      * Part (a): 4 marks question
      * Part (b): 5 marks question
      * Total: 9 marks per question (students answer any 2)
+   - All questions MUST be based ONLY on the syllabus topics listed above
    - All questions must align with Punjab Board 2025 curriculum
-   - Maintain same difficulty level as sample
-   - Cover syllabus: ${syllabusInfo} across all sections
+   - Maintain same difficulty level as sample (if provided)
+   - Distribute questions across all syllabus topics to ensure comprehensive coverage
 
 IMPORTANT: The format, layout, structure, and design must be IDENTICAL to the sample. Only the question content should be new, based on the syllabus provided.` : `=== PUNJAB BOARD 2025 STANDARD FORMAT ===
 
@@ -239,14 +304,17 @@ PUNJAB BOARD 2025 CURRICULUM:
 - All questions must align with Punjab Board 2025 curriculum
 - Follow Punjab Board assessment patterns
 - Use appropriate difficulty for ${classDoc.name} students
-- Cover syllabus: ${syllabusInfo}`}
+- Generate questions ONLY from the syllabus topics provided above
+- Ensure comprehensive coverage of all listed syllabus topics`}
 
 SYLLABUS INFORMATION:
-The syllabus "${syllabusInfo}" refers to Punjab Board 2025 curriculum chapters/topics. Generate questions that:
-- Cover these chapters/topics comprehensively
-- Follow Punjab Board 2025 learning outcomes
+The syllabus topics listed above are from the teacher's syllabus management system. Generate questions that:
+- Cover ALL the listed syllabus topics comprehensively
+- Ensure questions are directly related to the specific topics provided
+- Follow Punjab Board 2025 learning outcomes for each topic
 - Use Punjab Board standard question formats
-- Match the difficulty and style of the sample (if provided)
+- Match the difficulty and style of the sample/saved format (if provided)
+- Distribute questions evenly across all syllabus topics to ensure balanced coverage
 
 OUTPUT REQUIREMENTS:
 Generate the complete paper text with:
@@ -258,8 +326,9 @@ Generate the complete paper text with:
    - Q. 4, Q. 5, Q. 6: 3 long questions, each with (a) 4 marks and (b) 5 marks (answer any 2, 2×9=18 marks)
 3. Correct numbering and marking scheme
 4. All formatting indicators (bold, alignment, etc.) clearly marked
-5. Questions based on syllabus: ${syllabusInfo}
+5. Questions based ONLY on the syllabus topics provided above
 6. Punjab Board 2025 curriculum alignment
+7. Comprehensive coverage of all listed syllabus topics
 
 CRITICAL: The paper MUST have this exact structure:
 - Q. 1: 12 MCQs
@@ -302,7 +371,7 @@ Generate the complete paper now, following the EXACT format of the sample (if pr
       paper: {
         _id: paper.id,
         title: paper.title,
-        subject: subject.name,
+        subject: subjectName,
         class: classDoc.name,
         createdAt: paper.created_at,
       },

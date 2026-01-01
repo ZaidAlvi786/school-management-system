@@ -22,36 +22,47 @@ export async function GET(request: NextRequest) {
     }
 
     // Get student record with class
-    const { data: student } = await supabase
+    const { data: student, error: studentError } = await supabase
       .from('students')
-      .select('class_id')
+      .select('id, class_id, section_id')
       .eq('user_id', studentUser.id)
       .single();
 
-    if (!student) {
+    if (studentError || !student) {
       return NextResponse.json({ error: "Student record not found" }, { status: 404 });
     }
 
-    // Get syllabus for student's class
-    // Note: Assuming there's a syllabus table linked to class_id
-    // If not, return empty array for now
-    const { data: syllabus, error } = await supabase
+    // Fetch syllabus for student's class
+    const { data: syllabus, error: syllabusError } = await supabase
       .from('syllabus')
-      .select('*, subject:subjects(name, code), class:classes(name)')
+      .select(`
+        id,
+        topic,
+        description,
+        term,
+        status,
+        is_completed,
+        start_date,
+        completion_date,
+        target_completion_date,
+        notes,
+        materials,
+        subject:subjects(id, name, code),
+        class:classes(id, name, level)
+      `)
       .eq('class_id', student.class_id)
-      .order('created_at', { ascending: false });
+      .order('term', { ascending: true })
+      .order('created_at', { ascending: true });
 
-    if (error) {
-      // If table doesn't exist, return empty array
-      if (error.code === '42P01') {
-        return NextResponse.json([]);
-      }
-      throw error;
+    if (syllabusError) {
+      throw syllabusError;
     }
 
+    // Filter by section if syllabus has section_id (if implemented)
+    // For now, return all syllabus for the class
     return NextResponse.json(syllabus || []);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Error fetching student syllabus:", error);
+    return NextResponse.json({ error: error.message || "Failed to fetch syllabus" }, { status: 500 });
   }
 }
-
