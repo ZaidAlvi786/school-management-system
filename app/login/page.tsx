@@ -350,7 +350,7 @@ export default function LoginPage() {
             {/* Mobile: Link to switch to Sign Up */}
             <div className="lg:hidden text-center mb-4">
               <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <button
                   type="button"
                   onClick={() => setIsSignUp(true)}
