@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import FaceRegistrationDialog from "@/components/face-registration-dialog";
 import FaceAttendanceDialog from "@/components/face-attendance-dialog";
+import FingerprintRegistrationDialog from "@/components/fingerprint-registration-dialog";
+import FingerprintAttendanceDialog from "@/components/fingerprint-attendance-dialog";
 import { useToast } from "@/components/ui/use-toast";
 
 interface Attendance {
@@ -34,9 +36,12 @@ export default function StudentAttendancePage() {
     totalDays: 0,
   });
   const [hasRegisteredFace, setHasRegisteredFace] = useState<boolean | null>(null);
+  const [hasRegisteredFingerprint, setHasRegisteredFingerprint] = useState<boolean | null>(null);
   const [checkingFace, setCheckingFace] = useState(false);
   const [showRegistrationDialog, setShowRegistrationDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
+  const [showFingerprintRegistrationDialog, setShowFingerprintRegistrationDialog] = useState(false);
+  const [showFingerprintAttendanceDialog, setShowFingerprintAttendanceDialog] = useState(false);
   const [isTodayMarked, setIsTodayMarked] = useState(false);
 
   useEffect(() => {
@@ -62,9 +67,10 @@ export default function StudentAttendancePage() {
       if (response.ok) {
         const data = await response.json();
         setHasRegisteredFace(data.hasRegisteredFace);
+        setHasRegisteredFingerprint(data.hasRegisteredFingerprint || false);
       }
     } catch (error) {
-      console.error("Failed to check face registration:", error);
+      console.error("Failed to check registration:", error);
     } finally {
       setCheckingFace(false);
     }
@@ -173,69 +179,100 @@ export default function StudentAttendancePage() {
             </div>
           </div>
 
-          {/* Mark Attendance Button */}
-          <Card className="mb-6 md:mb-8 border-2 bg-gradient-to-r from-blue-50 to-cyan-50 animate-slide-up">
-            <CardContent className="p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex-1">
+          {/* Mark Attendance Section */}
+          <Card className="mb-6 md:mb-8 border-2 bg-gradient-to-r from-blue-50 to-cyan-50 animate-slide-up relative z-20">
+            <CardContent className="p-4 md:p-6 relative z-20">
+              <div className="flex flex-col gap-4">
+                <div>
                   <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
                     Mark Today&apos;s Attendance
                   </h3>
                   <p className="text-sm text-gray-600">
                     {isTodayMarked 
                       ? "Your attendance for today has already been marked."
-                      : hasRegisteredFace === false || hasRegisteredFace === null
-                      ? "Please register your face first to mark attendance using face recognition."
-                      : "Click the button below to mark your attendance using face recognition."}
+                      : (hasRegisteredFace === false || hasRegisteredFace === null) && (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)
+                      ? "Please register your face or fingerprint first to mark attendance."
+                      : "Choose a method below to mark your attendance."}
                   </p>
                 </div>
-                <div className="flex gap-3">
-                  {(hasRegisteredFace === false || hasRegisteredFace === null) && (
-                    <Button
-                      onClick={() => setShowRegistrationDialog(true)}
-                      className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
-                      disabled={checkingFace}
-                    >
-                      {checkingFace ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Checking...
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Register Face
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  {hasRegisteredFace === true && !isTodayMarked && (
-                    <Button
-                      onClick={() => setShowAttendanceDialog(true)}
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Mark Attendance
-                    </Button>
-                  )}
-                  {hasRegisteredFace === true && isTodayMarked && (
-                    <Button
-                      disabled
-                      className="bg-gray-400 text-white cursor-not-allowed"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Already Marked
-                    </Button>
-                  )}
-                </div>
+                
+                {/* Registration Buttons */}
+                {((hasRegisteredFace === false || hasRegisteredFace === null) || (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)) && (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {hasRegisteredFace === false || hasRegisteredFace === null ? (
+                      <Button
+                        onClick={() => setShowRegistrationDialog(true)}
+                        className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white relative z-30"
+                        disabled={checkingFace}
+                      >
+                        {checkingFace ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Register Face
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                    {hasRegisteredFingerprint === false || hasRegisteredFingerprint === null ? (
+                      <Button
+                        onClick={() => setShowFingerprintRegistrationDialog(true)}
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white relative z-30"
+                        disabled={checkingFace}
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Register Fingerprint
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Attendance Marking Buttons */}
+                {!isTodayMarked && ((hasRegisteredFace === true) || (hasRegisteredFingerprint === true)) && (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {hasRegisteredFace === true && (
+                      <Button
+                        onClick={() => setShowAttendanceDialog(true)}
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white relative z-30"
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Mark with Face
+                      </Button>
+                    )}
+                    {hasRegisteredFingerprint === true && (
+                      <Button
+                        onClick={() => setShowFingerprintAttendanceDialog(true)}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white relative z-30"
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Mark with Fingerprint
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Already Marked */}
+                {isTodayMarked && (
+                  <Button
+                    disabled
+                    className="bg-gray-400 text-white cursor-not-allowed relative z-30"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Already Marked
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
 
           {/* Stats Cards with enhanced animations */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
-            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 relative z-10">
+            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               <CardHeader className="pb-3 relative z-10">
                 <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
                   <div className="p-1.5 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors">
@@ -257,8 +294,8 @@ export default function StudentAttendancePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group cursor-pointer" style={{ animationDelay: "0.1s" }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group" style={{ animationDelay: "0.1s" }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               <CardHeader className="pb-3 relative z-10">
                 <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
                   <div className="p-1.5 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors">
@@ -275,8 +312,8 @@ export default function StudentAttendancePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group cursor-pointer" style={{ animationDelay: "0.2s" }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group" style={{ animationDelay: "0.2s" }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               <CardHeader className="pb-3 relative z-10">
                 <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
                   <div className="p-1.5 bg-red-100 rounded-lg group-hover:bg-red-200 transition-colors">
@@ -293,8 +330,8 @@ export default function StudentAttendancePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group cursor-pointer" style={{ animationDelay: "0.3s" }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <Card className="border-2 hover:shadow-2xl transition-all duration-300 animate-slide-up hover:scale-[1.02] hover:-translate-y-1 overflow-hidden group" style={{ animationDelay: "0.3s" }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               <CardHeader className="pb-3 relative z-10">
                 <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
                   <div className="p-1.5 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
@@ -381,6 +418,7 @@ export default function StudentAttendancePage() {
         onOpenChange={setShowRegistrationDialog}
         onSuccess={() => {
           setHasRegisteredFace(true);
+          checkFaceRegistration();
           toast({
             title: "Success",
             description: "Your face has been registered successfully!",
@@ -392,6 +430,33 @@ export default function StudentAttendancePage() {
       <FaceAttendanceDialog
         open={showAttendanceDialog}
         onOpenChange={setShowAttendanceDialog}
+        onSuccess={() => {
+          fetchAttendance();
+          toast({
+            title: "Success",
+            description: "Your attendance has been marked successfully!",
+          });
+        }}
+      />
+
+      {/* Fingerprint Registration Dialog */}
+      <FingerprintRegistrationDialog
+        open={showFingerprintRegistrationDialog}
+        onOpenChange={setShowFingerprintRegistrationDialog}
+        onSuccess={() => {
+          setHasRegisteredFingerprint(true);
+          checkFaceRegistration();
+          toast({
+            title: "Success",
+            description: "Your fingerprint has been registered successfully!",
+          });
+        }}
+      />
+
+      {/* Fingerprint Attendance Dialog */}
+      <FingerprintAttendanceDialog
+        open={showFingerprintAttendanceDialog}
+        onOpenChange={setShowFingerprintAttendanceDialog}
         onSuccess={() => {
           fetchAttendance();
           toast({
