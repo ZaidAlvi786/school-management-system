@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/db";
+import crypto from "crypto";
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== "student") {
@@ -32,32 +33,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Student record not found" }, { status: 404 });
     }
 
-    // Check if face data exists
-    const { data: faceData, error: faceError } = await supabase
-      .from('student_face_data')
-      .select('id')
-      .eq('student_id', student.id)
-      .single();
-
-    if (faceError && faceError.code !== 'PGRST116') { // PGRST116 is "not found" error
-      throw faceError;
-    }
-
-    // Check if fingerprint/biometric data exists
+    // Get stored biometric credential
     const { data: biometricData, error: biometricError } = await supabase
       .from('student_biometric_data')
-      .select('id')
+      .select('credential_id, public_key')
       .eq('student_id', student.id)
       .single();
 
-    if (biometricError && biometricError.code !== 'PGRST116') {
-      throw biometricError;
+    if (biometricError || !biometricData) {
+      return NextResponse.json({ 
+        error: "Fingerprint not registered. Please register your fingerprint first." 
+      }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      hasRegisteredFace: !!faceData,
-      hasRegisteredFingerprint: !!biometricData,
-      studentId: student.id 
+    // Generate challenge
+    const challenge = crypto.randomBytes(32);
+
+    // Convert base64 strings back to arrays
+    const credentialId = Array.from(Buffer.from(biometricData.credential_id, 'base64url'));
+    const publicKey = Array.from(Buffer.from(biometricData.public_key, 'base64'));
+
+    return NextResponse.json({
+      challenge: Array.from(challenge).map(b => String.fromCharCode(b)).join(''),
+      credentialId,
+      publicKey,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

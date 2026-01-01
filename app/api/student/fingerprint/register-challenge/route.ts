@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/db";
+import crypto from "crypto";
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== "student") {
@@ -32,32 +33,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Student record not found" }, { status: 404 });
     }
 
-    // Check if face data exists
-    const { data: faceData, error: faceError } = await supabase
-      .from('student_face_data')
-      .select('id')
-      .eq('student_id', student.id)
-      .single();
+    // Generate challenge
+    const challenge = crypto.randomBytes(32);
+    const userId = Buffer.from(student.id);
 
-    if (faceError && faceError.code !== 'PGRST116') { // PGRST116 is "not found" error
-      throw faceError;
-    }
+    // Store challenge temporarily (in production, use Redis or similar)
+    // For now, we'll return it directly and verify on the server side
 
-    // Check if fingerprint/biometric data exists
-    const { data: biometricData, error: biometricError } = await supabase
-      .from('student_biometric_data')
-      .select('id')
-      .eq('student_id', student.id)
-      .single();
-
-    if (biometricError && biometricError.code !== 'PGRST116') {
-      throw biometricError;
-    }
-
-    return NextResponse.json({ 
-      hasRegisteredFace: !!faceData,
-      hasRegisteredFingerprint: !!biometricData,
-      studentId: student.id 
+    return NextResponse.json({
+      challenge: Array.from(challenge).map(b => String.fromCharCode(b)).join(''),
+      userId: Array.from(userId).map(b => String.fromCharCode(b)).join(''),
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
