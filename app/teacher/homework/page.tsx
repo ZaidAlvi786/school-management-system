@@ -22,7 +22,8 @@ import Sidebar from "@/components/sidebar";
 import LoadingSpinner from "@/components/loading-spinner";
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, BookOpen, Loader2, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, BookOpen, Loader2, Sparkles, CheckCircle2, XCircle, Users, Eye } from "lucide-react";
 
 interface Homework {
   _id: string;
@@ -64,6 +65,11 @@ export default function TeacherHomeworkPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showCompletionsDialog, setShowCompletionsDialog] = useState(false);
+  const [selectedHomeworkId, setSelectedHomeworkId] = useState<string | null>(null);
+  const [completions, setCompletions] = useState<any[]>([]);
+  const [loadingCompletions, setLoadingCompletions] = useState(false);
+  const [approving, setApproving] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     topic: "",
     details: "",
@@ -260,6 +266,74 @@ export default function TeacherHomeworkPage() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const fetchCompletions = async (homeworkId: string) => {
+    try {
+      setLoadingCompletions(true);
+      const response = await fetch(`/api/teacher/homework/completions?homeworkId=${homeworkId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCompletions(data.completions || []);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch completions",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch completions",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCompletions(false);
+    }
+  };
+
+  const handleViewCompletions = (homeworkId: string) => {
+    setSelectedHomeworkId(homeworkId);
+    setShowCompletionsDialog(true);
+    fetchCompletions(homeworkId);
+  };
+
+  const handleApproveReject = async (completionId: string, action: 'approve' | 'reject') => {
+    try {
+      setApproving(completionId);
+      const response = await fetch("/api/teacher/homework/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completionId, action }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast({
+          title: "Success",
+          description: data.message,
+        });
+        if (selectedHomeworkId) {
+          fetchCompletions(selectedHomeworkId);
+        }
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.error || "Failed to update status",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update status",
+        variant: "destructive",
+      });
+    } finally {
+      setApproving(null);
     }
   };
 
@@ -502,10 +576,22 @@ export default function TeacherHomeworkPage() {
             homework.map((hw) => (
               <Card key={hw._id}>
                 <CardHeader>
-                  <CardTitle>{hw.title}</CardTitle>
-                  <CardDescription>
-                    {hw.subject?.name} - {hw.class?.name} {hw.section?.name || "All Sections"} | Due: {new Date(hw.dueDate).toLocaleDateString()}
-                  </CardDescription>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle>{hw.title}</CardTitle>
+                      <CardDescription>
+                        {hw.subject?.name} - {hw.class?.name} {hw.section?.name || "All Sections"} | Due: {new Date(hw.dueDate).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={() => handleViewCompletions(hw._id)}
+                      variant="outline"
+                      className="ml-4"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Completions
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -526,6 +612,122 @@ export default function TeacherHomeworkPage() {
             </Card>
           )}
         </div>
+
+        {/* Completions Dialog */}
+        <Dialog open={showCompletionsDialog} onOpenChange={setShowCompletionsDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+            <DialogHeader>
+              <DialogTitle>Homework Completions</DialogTitle>
+              <DialogDescription>
+                View and approve student homework completions
+              </DialogDescription>
+            </DialogHeader>
+            {loadingCompletions ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : completions.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600">No students have completed this homework yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {completions.map((completion: any) => (
+                  <Card key={completion.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="font-semibold text-lg">
+                              {completion.student?.user?.name || "Unknown Student"}
+                            </h4>
+                            <Badge
+                              variant={
+                                completion.status === 'approved'
+                                  ? 'default'
+                                  : completion.status === 'rejected'
+                                  ? 'destructive'
+                                  : 'secondary'
+                              }
+                              className={
+                                completion.status === 'approved'
+                                  ? 'bg-green-500'
+                                  : completion.status === 'rejected'
+                                  ? 'bg-red-500'
+                                  : 'bg-yellow-500'
+                              }
+                            >
+                              {completion.status === 'approved'
+                                ? 'Approved'
+                                : completion.status === 'rejected'
+                                ? 'Rejected'
+                                : 'Pending'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            Roll Number: {completion.student?.roll_number || 'N/A'}
+                          </p>
+                          {completion.completed_at && (
+                            <p className="text-xs text-gray-500">
+                              Completed: {new Date(completion.completed_at).toLocaleString()}
+                            </p>
+                          )}
+                          {completion.approved_at && (
+                            <p className="text-xs text-green-600">
+                              Approved: {new Date(completion.approved_at).toLocaleString()}
+                            </p>
+                          )}
+                          {completion.rejection_reason && (
+                            <p className="text-xs text-red-600 mt-1">
+                              Rejection: {completion.rejection_reason}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {completion.status !== 'approved' && (
+                            <Button
+                              onClick={() => handleApproveReject(completion.id, 'approve')}
+                              disabled={approving === completion.id}
+                              size="sm"
+                              className="bg-green-500 hover:bg-green-600"
+                            >
+                              {approving === completion.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Approve
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          {completion.status !== 'rejected' && (
+                            <Button
+                              onClick={() => handleApproveReject(completion.id, 'reject')}
+                              disabled={approving === completion.id}
+                              size="sm"
+                              variant="destructive"
+                            >
+                              {approving === completion.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
         </div>
       </main>
     </div>
