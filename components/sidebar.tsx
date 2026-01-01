@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -19,6 +20,8 @@ import {
   LogOut,
   QrCode,
   Settings,
+  Menu,
+  X,
 } from "lucide-react";
 import LogoutButton from "./logout-button";
 
@@ -76,6 +79,24 @@ const studentNavItems: NavItem[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Close sidebar when route changes on mobile
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isMobileOpen]);
 
   if (!session) return null;
 
@@ -102,23 +123,58 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-slate-700 shadow-2xl z-50">
-      <div className="flex flex-col h-full">
-        {/* Logo/Header */}
-        <div className="p-6 border-b border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-lg">
-              <GraduationCap className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">School Portal</h2>
-              <p className="text-xs text-slate-400 capitalize">{session.user.role}</p>
-            </div>
-          </div>
-        </div>
+    <>
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileOpen(true)}
+        className="fixed top-4 right-4 z-50 lg:hidden p-2 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 active:scale-95"
+        aria-label="Open menu"
+      >
+        <Menu className="h-6 w-6" />
+      </button>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      {/* Overlay for mobile */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setIsMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={cn(
+          "fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-slate-700 shadow-2xl z-50 transition-transform duration-300 ease-in-out",
+          // On mobile: slide in from left when open, hide when closed
+          "lg:translate-x-0",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+        <div className="flex flex-col h-full">
+          {/* Logo/Header with Close Button */}
+          <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-lg">
+                <GraduationCap className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">School Portal</h2>
+                <p className="text-xs text-slate-400 capitalize">{session.user.role}</p>
+              </div>
+            </div>
+            {/* Close Button - Only visible on mobile */}
+            <button
+              onClick={() => setIsMobileOpen(false)}
+              className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors duration-200"
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -145,16 +201,17 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* User Info & Logout */}
-        <div className="p-4 border-t border-slate-700">
-          <div className="mb-3 px-4 py-2 rounded-lg bg-slate-800/50">
-            <p className="text-sm font-medium text-white truncate">{session.user.name}</p>
-            <p className="text-xs text-slate-400 truncate">{session.user.email}</p>
+          {/* User Info & Logout */}
+          <div className="p-4 border-t border-slate-700">
+            <div className="mb-3 px-4 py-2 rounded-lg bg-slate-800/50">
+              <p className="text-sm font-medium text-white truncate">{session.user.name}</p>
+              <p className="text-xs text-slate-400 truncate">{session.user.email}</p>
+            </div>
+            <LogoutButton />
           </div>
-          <LogoutButton />
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
