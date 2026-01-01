@@ -12,7 +12,7 @@ import { Lock, Mail, Loader2, ArrowRight, LogIn, UserPlus, User, Phone, Building
 import Link from "next/link";
 
 export default function LoginPage() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,11 +48,22 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
+    hasRedirected.current = false; // Reset redirect flag
 
     try {
       const result = await signIn("credentials", {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         redirect: false,
       });
@@ -65,12 +76,7 @@ export default function LoginPage() {
         });
         setLoading(false);
       } else {
-        // Update session to refresh it
-        await update();
-        
-        // Wait a moment for session to update, then check and redirect
-        setTimeout(async () => {
-          try {
+        // Fetch session to get user role for redirect
             const sessionResponse = await fetch('/api/auth/session');
             const sessionData = await sessionResponse.json();
             
@@ -95,18 +101,13 @@ export default function LoginPage() {
               } else if (role === "parent") {
                 window.location.href = "/parent";
               } else {
-                router.refresh();
+            window.location.href = "/";
               }
             } else {
               // Fallback: refresh and let useEffect handle redirect
+          setLoading(false);
               router.refresh();
             }
-          } catch (err) {
-            // Fallback: refresh and let useEffect handle redirect
-            router.refresh();
-          }
-          setLoading(false);
-        }, 300);
       }
     } catch (error) {
       toast({
@@ -141,9 +142,9 @@ export default function LoginPage() {
     }
   };
 
-  // Redirect if already logged in
+  // Redirect if already logged in (but not during login process)
   useEffect(() => {
-    if (hasRedirected.current) return;
+    if (hasRedirected.current || loading) return;
     
     if (status === "authenticated" && session?.user?.role) {
       hasRedirected.current = true;
@@ -164,7 +165,7 @@ export default function LoginPage() {
         }
       }, 100);
     }
-  }, [status, session, router]);
+  }, [status, session, router, loading]);
 
   // Debounced domain check
   useEffect(() => {
@@ -328,58 +329,87 @@ export default function LoginPage() {
     : "";
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
-      <div className="relative w-full h-full max-w-[1100px] max-h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden flex">
-        {/* Sign In Form - Left Side */}
-        <div className={`absolute left-0 top-0 w-1/2 h-full p-12 transition-transform duration-700 ease-in-out ${isSignUp ? '-translate-x-full' : 'translate-x-0'}`}>
-          <form onSubmit={handleLogin} className="h-full flex flex-col justify-center">
-            <h2 className="text-3xl font-bold text-center mb-10 text-gray-800">Sign In</h2>
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-3 sm:p-6 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
+
+      <div className="relative w-full max-w-[1100px] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col lg:flex-row min-h-[600px] sm:min-h-[650px] lg:min-h-0 lg:h-[650px] animate-fade-in">
+        {/* Sign In Form - Left Side (Desktop) / Full Width (Mobile) */}
+        <div className={`w-full lg:w-1/2 h-full p-6 sm:p-8 lg:p-12 flex flex-col justify-center transition-all duration-700 ease-in-out z-10 bg-white ${
+          isSignUp 
+            ? 'lg:-translate-x-full opacity-0 lg:opacity-0 hidden lg:absolute lg:left-0' 
+            : 'translate-x-0 opacity-100 block lg:relative'
+        }`}>
+          <form onSubmit={handleLogin} className="h-full flex flex-col justify-center animate-slide-in-left">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-10 text-gray-800">Sign In</h2>
             
-            <div className="space-y-6">
-              <div>
+            {/* Mobile: Link to switch to Sign Up */}
+            <div className="lg:hidden text-center mb-4">
+              <p className="text-sm text-gray-600">
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(true)}
+                  className="text-blue-600 font-semibold hover:text-blue-700 underline"
+                >
+                  Sign Up
+                </button>
+              </p>
+            </div>
+            
+            <div className="space-y-4 sm:space-y-6">
+              <div className="animate-fade-in-up animation-delay-100">
                 <Label htmlFor="login-email" className="text-sm font-semibold text-gray-700 mb-2 block">
                   Email Address
                 </Label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-colors group-focus-within:text-blue-500" />
                   <Input
                     id="login-email"
+                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={() => setFocusedField("email")}
                     onBlur={() => setFocusedField(null)}
-                    className={`pl-12 h-14 bg-blue-50 border-2 rounded-xl transition-all outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
+                    className={`pl-12 h-12 sm:h-14 bg-blue-50 border-2 rounded-xl transition-all duration-300 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 touch-manipulation ${
                       focusedField === "email" 
-                        ? "border-blue-500 bg-blue-100" 
-                        : "border-blue-200"
+                        ? "border-blue-500 bg-blue-100 shadow-md" 
+                        : "border-blue-200 hover:border-blue-300"
                     }`}
                     placeholder="admin@school.com"
                     required
+                    aria-label="Email Address"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="animate-fade-in-up animation-delay-200">
                 <Label htmlFor="login-password" className="text-sm font-semibold text-gray-700 mb-2 block">
                   Password
                 </Label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-colors group-focus-within:text-blue-500" />
                   <Input
                     id="login-password"
+                    name="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onFocus={() => setFocusedField("password")}
                     onBlur={() => setFocusedField(null)}
-                    className={`pl-12 h-14 bg-blue-50 border-2 rounded-xl transition-all outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
+                    className={`pl-12 h-12 sm:h-14 bg-blue-50 border-2 rounded-xl transition-all duration-300 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 touch-manipulation ${
                       focusedField === "password" 
-                        ? "border-blue-500 bg-blue-100" 
-                        : "border-blue-200"
+                        ? "border-blue-500 bg-blue-100 shadow-md" 
+                        : "border-blue-200 hover:border-blue-300"
                     }`}
                     placeholder="••••••••"
                     required
+                    aria-label="Password"
                   />
                 </div>
               </div>
@@ -388,7 +418,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full mt-10 h-14 bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
+              className="w-full mt-6 sm:mt-10 h-12 sm:h-14 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 hover:from-blue-700 hover:via-blue-600 hover:to-blue-500 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl animate-fade-in-up animation-delay-300"
             >
               {loading ? (
                 <>
@@ -405,14 +435,32 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Sign Up Form - Right Side (Hidden initially) */}
-        <div className={`absolute right-0 top-0 w-1/2 h-full p-12 transition-transform duration-700 ease-in-out ${isSignUp ? 'translate-x-0' : 'translate-x-full'}`}>
-          <form onSubmit={handleSignup} className="h-full flex flex-col">
-            <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">Sign Up</h2>
+        {/* Sign Up Form - Right Side (Desktop) / Full Width (Mobile) */}
+        <div className={`w-full lg:w-1/2 h-full p-6 sm:p-8 lg:p-12 flex flex-col transition-all duration-700 ease-in-out z-10 bg-white ${
+          isSignUp 
+            ? 'translate-x-0 opacity-100 block lg:relative lg:ml-auto' 
+            : 'lg:translate-x-full opacity-0 lg:opacity-0 hidden lg:absolute lg:right-0'
+        }`}>
+          <form onSubmit={handleSignup} className="h-full flex flex-col animate-slide-in-right">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-800">Sign Up</h2>
             
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            {/* Mobile: Link to switch to Sign In */}
+            <div className="lg:hidden text-center mb-4">
+              <p className="text-sm text-gray-600">
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(false)}
+                  className="text-blue-600 font-semibold hover:text-blue-700 underline"
+                >
+                  Sign In
+                </button>
+              </p>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4 pr-1 sm:pr-2 custom-scrollbar">
               {/* Role Selection */}
-              <div>
+              <div className="animate-fade-in-up">
                 <Label className="text-sm font-semibold text-gray-700 mb-2 block">Select Your Role *</Label>
                 <Select
                   value={selectedRole}
@@ -438,7 +486,7 @@ export default function LoginPage() {
                     setDomainAvailable(null);
                   }}
                 >
-                  <SelectTrigger className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+                  <SelectTrigger className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation">
                     <SelectValue placeholder="Choose your role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -485,7 +533,7 @@ export default function LoginPage() {
                         <Input
                           value={signupData.userName}
                           onChange={(e) => setSignupData({ ...signupData, userName: e.target.value })}
-                          className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                          className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                           placeholder="admin"
                           required
                         />
@@ -496,7 +544,7 @@ export default function LoginPage() {
                           <Input
                             value={signupData.domain}
                             onChange={(e) => setSignupData({ ...signupData, domain: e.target.value.toLowerCase() })}
-                            className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl pr-10 focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl pr-10 focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300"
                             placeholder="school.com"
                             required
                           />
@@ -534,7 +582,7 @@ export default function LoginPage() {
                         type="email"
                         value={signupData.email}
                         onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-                        className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300"
                         placeholder={`${selectedRole}@school.com`}
                         required
                       />
@@ -546,7 +594,7 @@ export default function LoginPage() {
                     <Input
                       value={signupData.name}
                       onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
-                      className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300"
                       placeholder="Full Name"
                       required
                     />
@@ -558,7 +606,7 @@ export default function LoginPage() {
                       type="tel"
                       value={signupData.phone}
                       onChange={(e) => setSignupData({ ...signupData, phone: e.target.value })}
-                      className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300"
                       placeholder="+92-300-1234567"
                     />
                   </div>
@@ -569,7 +617,7 @@ export default function LoginPage() {
                       type="password"
                       value={signupData.password}
                       onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                      className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300"
                       placeholder="••••••••"
                       required
                       minLength={6}
@@ -582,7 +630,7 @@ export default function LoginPage() {
                       type="password"
                       value={signupData.confirmPassword}
                       onChange={(e) => setSignupData({ ...signupData, confirmPassword: e.target.value })}
-                      className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300"
                       placeholder="••••••••"
                       required
                       minLength={6}
@@ -599,7 +647,7 @@ export default function LoginPage() {
                           <Input
                             value={signupData.schoolName}
                             onChange={(e) => setSignupData({ ...signupData, schoolName: e.target.value })}
-                            className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                             required
                           />
                         </div>
@@ -608,7 +656,7 @@ export default function LoginPage() {
                           <Input
                             value={signupData.schoolCode}
                             onChange={(e) => setSignupData({ ...signupData, schoolCode: e.target.value })}
-                            className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                             required
                           />
                         </div>
@@ -617,17 +665,17 @@ export default function LoginPage() {
                           <Input
                             value={signupData.address}
                             onChange={(e) => setSignupData({ ...signupData, address: e.target.value })}
-                            className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                             required
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <Label className="text-sm font-semibold text-gray-700 mb-2 block">City *</Label>
                             <Input
                               value={signupData.city}
                               onChange={(e) => setSignupData({ ...signupData, city: e.target.value })}
-                              className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                               required
                             />
                           </div>
@@ -636,7 +684,7 @@ export default function LoginPage() {
                             <Input
                               value={signupData.province}
                               onChange={(e) => setSignupData({ ...signupData, province: e.target.value })}
-                              className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                               required
                             />
                           </div>
@@ -647,7 +695,7 @@ export default function LoginPage() {
                             value={signupData.schoolType}
                             onValueChange={(value) => setSignupData({ ...signupData, schoolType: value })}
                           >
-                            <SelectTrigger className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+                            <SelectTrigger className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -670,7 +718,7 @@ export default function LoginPage() {
                               setSignupData({ ...signupData, certificateNumber: "" });
                             }}
                           >
-                            <SelectTrigger className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+                            <SelectTrigger className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -685,7 +733,7 @@ export default function LoginPage() {
                             <Input
                               value={signupData.certificateNumber}
                               onChange={(e) => setSignupData({ ...signupData, certificateNumber: e.target.value })}
-                              className="h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              className="h-12 sm:h-14 bg-blue-50 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:bg-blue-100 outline-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 hover:border-blue-300 touch-manipulation"
                               required
                             />
                           </div>
@@ -726,7 +774,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading || !selectedRole || (selectedRole === "admin" && (domainAvailable === false || checkingDomain))}
-              className="w-full mt-6 h-14 bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
+              className="w-full mt-4 sm:mt-6 h-12 sm:h-14 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 hover:from-blue-700 hover:via-blue-600 hover:to-blue-500 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loading ? (
                 <>
@@ -743,16 +791,24 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Right Side Panel - Sign Up Promotion */}
-        <div className={`absolute right-0 top-0 w-1/2 h-full transition-transform duration-700 ease-in-out ${isSignUp ? 'translate-x-full' : 'translate-x-0'}`}>
-          <div className="relative w-full h-full bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-800 flex flex-col items-center justify-center p-12 text-white">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold mb-4">New here?</h1>
-              <p className="text-lg mb-8 opacity-90">Sign up and discover</p>
+        {/* Right Side Panel - Sign Up Promotion (Desktop Only) - Shows when login form is visible */}
+        <div className={`hidden lg:flex absolute right-0 top-0 w-1/2 h-full transition-transform duration-700 ease-in-out z-0 ${isSignUp ? 'translate-x-full' : 'translate-x-0'}`}>
+          <div className="relative w-full h-full bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-800 flex flex-col items-center justify-center p-12 text-white overflow-hidden">
+            {/* Animated gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-600/50 via-transparent to-indigo-700/50 animate-gradient-x"></div>
+            
+            {/* Floating shapes */}
+            <div className="absolute top-20 left-20 w-32 h-32 bg-white/10 rounded-full blur-2xl animate-float-enhanced"></div>
+            <div className="absolute bottom-20 right-20 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-float-enhanced animation-delay-2000"></div>
+            
+            <div className="text-center relative z-10 animate-fade-in">
+              <Sparkles className="h-16 w-16 mx-auto mb-6 animate-pulse" />
+              <h1 className="text-4xl font-bold mb-4 animate-slide-in-up">New here?</h1>
+              <p className="text-lg mb-8 opacity-90 animate-slide-in-up animation-delay-100">Sign up and discover amazing features</p>
               <button
                 type="button"
                 onClick={() => setIsSignUp(true)}
-                className="border-2 border-white rounded-full px-8 py-3 font-semibold hover:bg-white/20 transition-all duration-300"
+                className="border-2 border-white rounded-full px-8 py-3 font-semibold hover:bg-white/20 transition-all duration-300 transform hover:scale-110 active:scale-95 shadow-lg hover:shadow-xl animate-slide-in-up animation-delay-200"
               >
                 Sign Up
               </button>
@@ -760,22 +816,31 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Left Side Panel - Sign In Promotion (shown when signup is active) */}
-        <div className={`absolute left-0 top-0 w-1/2 h-full transition-transform duration-700 ease-in-out ${isSignUp ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 flex flex-col items-center justify-center p-12 text-white">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold mb-4">One of us?</h1>
-              <p className="text-lg mb-8 opacity-90">Just sign in</p>
+        {/* Left Side Panel - Sign In Promotion (Desktop Only) - Shows when signup form is visible */}
+        <div className={`hidden lg:flex absolute left-0 top-0 w-1/2 h-full transition-transform duration-700 ease-in-out z-0 ${isSignUp ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="relative w-full h-full bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 flex flex-col items-center justify-center p-12 text-white overflow-hidden">
+            {/* Animated gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-l from-blue-600/50 via-transparent to-indigo-700/50 animate-gradient-x-reverse"></div>
+            
+            {/* Floating shapes */}
+            <div className="absolute top-20 right-20 w-32 h-32 bg-white/10 rounded-full blur-2xl animate-float-enhanced"></div>
+            <div className="absolute bottom-20 left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-float-enhanced animation-delay-2000"></div>
+            
+            <div className="text-center relative z-10 animate-fade-in">
+              <User className="h-16 w-16 mx-auto mb-6 animate-pulse" />
+              <h1 className="text-4xl font-bold mb-4 animate-slide-in-up">One of us?</h1>
+              <p className="text-lg mb-8 opacity-90 animate-slide-in-up animation-delay-100">Welcome back! Just sign in</p>
               <button
                 type="button"
                 onClick={() => setIsSignUp(false)}
-                className="border-2 border-white rounded-full px-8 py-3 font-semibold hover:bg-white/20 transition-all duration-300"
+                className="border-2 border-white rounded-full px-8 py-3 font-semibold hover:bg-white/20 transition-all duration-300 transform hover:scale-110 active:scale-95 shadow-lg hover:shadow-xl animate-slide-in-up animation-delay-200"
               >
                 Sign In
               </button>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
