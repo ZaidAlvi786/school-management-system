@@ -93,17 +93,53 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate subject and class belong to teacher
-    // Query subjects table directly (it has both teacher_id and class_id)
+    // Get teacher record first
+    const { data: teacher } = await supabase
+      .from('teachers')
+      .select('id')
+      .eq('user_id', teacherUser.id)
+      .single();
+
+    if (!teacher) {
+      return NextResponse.json({ error: "Teacher not found" }, { status: 404 });
+    }
+
+    // Check if subject exists and belongs to the class
     const { data: subject, error: subjectError } = await supabase
       .from('subjects')
-      .select('id, name, code')
+      .select('id, name, code, class_id')
       .eq('id', subjectId)
-      .eq('teacher_id', teacherUser.id)
-      .eq('class_id', classId)
       .single();
 
     if (subjectError || !subject) {
-      return NextResponse.json({ error: "Subject not found or not assigned to you" }, { status: 404 });
+      return NextResponse.json({ error: "Subject not found" }, { status: 404 });
+    }
+
+    // Verify subject belongs to the specified class
+    if (subject.class_id !== classId) {
+      return NextResponse.json({ error: "Subject does not belong to this class" }, { status: 400 });
+    }
+
+    // Check if teacher is assigned to this subject (through teacher_subjects OR direct teacher_id)
+    // Method 1: Check if subject has teacher_id set directly
+    const { data: subjectWithTeacher } = await supabase
+      .from('subjects')
+      .select('id, teacher_id')
+      .eq('id', subjectId)
+      .eq('teacher_id', teacherUser.id)
+      .single();
+
+    // Method 2: Check through teacher_subjects table
+    const { data: teacherSubject } = await supabase
+      .from('teacher_subjects')
+      .select('teacher_id, subject_id')
+      .eq('teacher_id', teacher.id)
+      .eq('subject_id', subjectId)
+      .single();
+
+    // Teacher is assigned if either method returns a result
+    if (!subjectWithTeacher && !teacherSubject) {
+      return NextResponse.json({ error: "You are not assigned to teach this subject/class" }, { status: 403 });
     }
 
     const subjectName = subject.name;

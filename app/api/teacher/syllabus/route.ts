@@ -32,20 +32,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Teacher record not found" }, { status: 404 });
     }
 
-    // Get teacher's subjects
+    // Get teacher's subjects - check both teacher_subjects table and subjects table with teacher_id
+    // Method 1: Get subjects from teacher_subjects
     const { data: teacherSubjects } = await supabase
       .from('teacher_subjects')
-      .select('subject_id, class_id')
+      .select('subject_id')
       .eq('teacher_id', teacher.id);
 
-    if (!teacherSubjects || teacherSubjects.length === 0) {
+    // Method 2: Get subjects directly assigned via subjects.teacher_id
+    const { data: directSubjects } = await supabase
+      .from('subjects')
+      .select('id')
+      .eq('teacher_id', teacherUser.id);
+
+    // Combine both methods to get all subject IDs
+    const subjectIdsFromTeacherSubjects = (teacherSubjects || []).map(ts => ts.subject_id);
+    const subjectIdsFromDirect = (directSubjects || []).map(s => s.id);
+    const allSubjectIds = [...new Set([...subjectIdsFromTeacherSubjects, ...subjectIdsFromDirect])];
+
+    if (allSubjectIds.length === 0) {
       return NextResponse.json({ syllabus: [] });
     }
 
     // Get all syllabus for teacher's subjects
-    const subjectIds = teacherSubjects.map(ts => ts.subject_id);
-    const classIds = [...new Set(teacherSubjects.map(ts => ts.class_id))];
-
+    // Filter by assigned_by_id to only show syllabus created by this teacher
     const { data: syllabus, error } = await supabase
       .from('syllabus')
       .select(`
@@ -57,6 +67,7 @@ export async function GET(request: NextRequest) {
         is_completed,
         start_date,
         completion_date,
+        completed_at,
         target_completion_date,
         notes,
         materials,
@@ -64,8 +75,8 @@ export async function GET(request: NextRequest) {
         class:classes(id, name, level),
         assigned_by:users!syllabus_assigned_by_id_fkey(id, name)
       `)
-      .in('subject_id', subjectIds)
-      .in('class_id', classIds)
+      .in('subject_id', allSubjectIds)
+      .eq('assigned_by_id', teacherUser.id)
       .order('term', { ascending: true })
       .order('created_at', { ascending: true });
 
@@ -116,15 +127,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Teacher record not found" }, { status: 404 });
     }
 
-    const { data: teacherSubject } = await supabase
-      .from('teacher_subjects')
-      .select('id')
-      .eq('teacher_id', teacher.id)
-      .eq('subject_id', subjectId)
-      .eq('class_id', classId)
+    // Check if subject exists and belongs to the class
+    const { data: subject } = await supabase
+      .from('subjects')
+      .select('id, class_id, teacher_id')
+      .eq('id', subjectId)
       .single();
 
-    if (!teacherSubject) {
+    if (!subject) {
+      return NextResponse.json({ error: "Subject not found" }, { status: 404 });
+    }
+
+    // Verify subject belongs to the specified class
+    if (subject.class_id !== classId) {
+      return NextResponse.json({ error: "Subject does not belong to this class" }, { status: 400 });
+    }
+
+    // Check if teacher is assigned to this subject (via teacher_subjects OR direct teacher_id)
+    const { data: teacherSubject } = await supabase
+      .from('teacher_subjects')
+      .select('teacher_id, subject_id')
+      .eq('teacher_id', teacher.id)
+      .eq('subject_id', subjectId)
+      .single();
+
+    // Also check if subject has teacher_id set directly
+    const isDirectlyAssigned = subject.teacher_id && String(subject.teacher_id) === String(teacherUser.id);
+
+    if (!teacherSubject && !isDirectlyAssigned) {
       return NextResponse.json({ error: "You are not assigned to teach this subject/class" }, { status: 403 });
     }
 
