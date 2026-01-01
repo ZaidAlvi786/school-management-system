@@ -9,22 +9,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Camera, CheckCircle2, X, RotateCcw } from "lucide-react";
+import { Loader2, Camera, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
-interface FaceRegistrationDialogProps {
+interface TeacherFaceAttendanceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  userType?: "student" | "teacher"; // Default to student
 }
 
-export default function FaceRegistrationDialog({
+export default function TeacherFaceAttendanceDialog({
   open,
   onOpenChange,
   onSuccess,
-  userType = "student",
-}: FaceRegistrationDialogProps) {
+}: TeacherFaceAttendanceDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -110,7 +108,7 @@ export default function FaceRegistrationDialog({
       
       toast({
         title: "Photo Captured",
-        description: "Review your photo and click Register if it looks good",
+        description: "Review your photo and click Mark Attendance if it looks good",
       });
     } catch (err: any) {
       console.error("Capture error:", err);
@@ -130,7 +128,7 @@ export default function FaceRegistrationDialog({
     });
   };
 
-  const registerFace = async () => {
+  const markAttendance = async () => {
     if (!capturedImage || isProcessing) return;
 
     try {
@@ -139,7 +137,7 @@ export default function FaceRegistrationDialog({
 
       toast({
         title: "Processing",
-        description: "Registering your face...",
+        description: "Marking your attendance...",
       });
 
       // Convert base64 image to blob
@@ -151,11 +149,7 @@ export default function FaceRegistrationDialog({
       formData.append("faceImage", blob, "face.jpg");
 
       // Send to server
-      const apiEndpoint = userType === "teacher" 
-        ? "/api/teacher/face/register-image"
-        : "/api/student/face/register-image";
-      
-      const registerResponse = await fetch(apiEndpoint, {
+      const registerResponse = await fetch("/api/teacher/attendance/mark-face", {
         method: "POST",
         body: formData,
       });
@@ -163,23 +157,25 @@ export default function FaceRegistrationDialog({
       const data = await registerResponse.json();
 
       if (!registerResponse.ok) {
-        throw new Error(data.error || "Failed to register face");
+        throw new Error(data.error || "Failed to mark attendance");
       }
 
       toast({
         title: "Success!",
-        description: "Your face has been registered successfully!",
+        description: data.isLate 
+          ? `Attendance marked! You were ${data.lateMinutes} minutes late.`
+          : "Attendance marked successfully!",
       });
 
       stopCamera();
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
-      console.error("Registration error:", err);
-      const errorMsg = err.message || "Failed to register face. Please try again.";
+      console.error("Attendance error:", err);
+      const errorMsg = err.message || "Failed to mark attendance. Please try again.";
       setError(errorMsg);
       toast({
-        title: "Registration Failed",
+        title: "Attendance Failed",
         description: errorMsg,
         variant: "destructive",
       });
@@ -209,9 +205,9 @@ export default function FaceRegistrationDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Register Your Face</DialogTitle>
+          <DialogTitle>Mark Attendance</DialogTitle>
           <DialogDescription>
-            Take a clear photo of your face for attendance verification
+            Take a clear photo of your face to mark attendance
           </DialogDescription>
         </DialogHeader>
 
@@ -244,7 +240,7 @@ export default function FaceRegistrationDialog({
 
               <Button
                 onClick={capturePhoto}
-                className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
               >
                 <Camera className="h-4 w-4 mr-2" />
                 Capture Photo
@@ -267,23 +263,22 @@ export default function FaceRegistrationDialog({
                   className="flex-1"
                   disabled={isProcessing}
                 >
-                  <RotateCcw className="h-4 w-4 mr-2" />
                   Retake
                 </Button>
                 <Button
-                  onClick={registerFace}
+                  onClick={markAttendance}
                   disabled={isProcessing}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Registering...
+                      Marking...
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Register Face
+                      Mark Attendance
                     </>
                   )}
                 </Button>
@@ -291,16 +286,14 @@ export default function FaceRegistrationDialog({
             </>
           )}
 
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              className="w-full"
-              disabled={isProcessing}
-            >
-              Cancel
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            className="w-full"
+            disabled={isProcessing}
+          >
+            Cancel
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

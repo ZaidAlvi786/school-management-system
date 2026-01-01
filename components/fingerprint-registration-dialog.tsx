@@ -15,12 +15,14 @@ interface FingerprintRegistrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  userType?: "student" | "teacher"; // Default to student
 }
 
 export default function FingerprintRegistrationDialog({
   open,
   onOpenChange,
   onSuccess,
+  userType = "student",
 }: FingerprintRegistrationDialogProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,8 @@ export default function FingerprintRegistrationDialog({
       setError(null);
 
       // Step 1: Get challenge from server
-      const challengeResponse = await fetch("/api/student/fingerprint/register-challenge", {
+      const apiPrefix = userType === "teacher" ? "/api/teacher" : "/api/student";
+      const challengeResponse = await fetch(`${apiPrefix}/fingerprint/register-challenge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -95,7 +98,7 @@ export default function FingerprintRegistrationDialog({
       const response = credential.response as AuthenticatorAttestationResponse;
 
       // Step 3: Send credential to server for storage
-      const registerResponse = await fetch("/api/student/fingerprint/register", {
+      const registerResponse = await fetch(`${apiPrefix}/fingerprint/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

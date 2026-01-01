@@ -15,12 +15,14 @@ interface FingerprintAttendanceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  userType?: "student" | "teacher"; // Default to student
 }
 
 export default function FingerprintAttendanceDialog({
   open,
   onOpenChange,
   onSuccess,
+  userType = "student",
 }: FingerprintAttendanceDialogProps) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,8 @@ export default function FingerprintAttendanceDialog({
       setSuccess(false);
 
       // Step 1: Get challenge from server
-      const challengeResponse = await fetch("/api/student/fingerprint/attendance-challenge", {
+      const apiPrefix = userType === "teacher" ? "/api/teacher" : "/api/student";
+      const challengeResponse = await fetch(`${apiPrefix}/fingerprint/attendance-challenge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -80,7 +83,7 @@ export default function FingerprintAttendanceDialog({
       const response = assertion.response as AuthenticatorAssertionResponse;
 
       // Step 3: Verify and mark attendance
-      const attendanceResponse = await fetch("/api/student/fingerprint/mark-attendance", {
+      const attendanceResponse = await fetch(`${apiPrefix}/fingerprint/mark-attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
