@@ -217,7 +217,7 @@ export default function TeacherAttendancePage() {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 ml-64">
+        <div className="flex-1 lg:ml-64">
           <LoadingSpinner />
         </div>
       </div>
@@ -228,16 +228,16 @@ export default function TeacherAttendancePage() {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <Sidebar />
-        <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="max-w-7xl mx-auto">
             <Card>
-              <CardContent className="py-16 text-center">
-                <UserCheck className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-                <p className="text-gray-600 mb-4">
+              <CardContent className="py-12 sm:py-16 text-center">
+                <UserCheck className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-gray-400 mb-4" />
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+                <p className="text-sm sm:text-base text-gray-600 mb-4">
                   Only class incharge teachers can mark attendance.
                 </p>
-                <p className="text-gray-500">
+                <p className="text-xs sm:text-sm text-gray-500">
                   Please contact your principal to be assigned as a class incharge.
                 </p>
               </CardContent>
@@ -251,30 +251,30 @@ export default function TeacherAttendancePage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+      <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Mark Attendance</h2>
-            <p className="text-gray-600">Mark attendance for your class students</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Mark Attendance</h2>
+            <p className="text-sm sm:text-base text-gray-600">Mark attendance for your class students</p>
           </div>
           <Link href="/teacher/qr-codes">
-            <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg">
+            <Button className="w-full sm:w-auto bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg">
               <QrCode className="mr-2 h-4 w-4" />
               View QR Codes
             </Button>
           </Link>
         </div>
 
-        <Card className="mb-6">
+        <Card className="mb-4 sm:mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
               Select Date
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <div className="space-y-2 flex-1">
                 <Label htmlFor="date">Date</Label>
                 <Input
@@ -288,6 +288,7 @@ export default function TeacherAttendancePage() {
               <Button
                 onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
                 variant="outline"
+                className="w-full sm:w-auto"
               >
                 Today
               </Button>
@@ -311,22 +312,22 @@ export default function TeacherAttendancePage() {
                     return (
                       <div
                         key={student._id}
-                        className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                        className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-semibold text-blue-700">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center font-semibold text-xs sm:text-sm text-blue-700 flex-shrink-0">
                               {student.rollNumber}
                             </div>
-                            <div>
-                              <p className="font-semibold text-gray-900">{student.user.name}</p>
-                              <p className="text-sm text-gray-500">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm sm:text-base text-gray-900 truncate">{student.user.name}</p>
+                              <p className="text-xs sm:text-sm text-gray-500">
                                 Section {student.section?.name || "N/A"}
                               </p>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Button
                             size="sm"
                             variant={currentStatus === "present" ? "default" : "outline"}
@@ -355,7 +356,7 @@ export default function TeacherAttendancePage() {
                             Late
                           </Button>
                         </div>
-                        <div className="w-32">
+                        <div className="w-full sm:w-32">
                           <Input
                             placeholder="Remarks (optional)"
                             value={remarks[student._id] || ""}
@@ -372,11 +373,11 @@ export default function TeacherAttendancePage() {
                 </CardContent>
               </Card>
 
-            <div className="flex justify-end gap-4 mb-8">
+            <div className="flex justify-end gap-4 mb-6 sm:mb-8">
               <Button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-lg"
+                className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-lg"
               >
                 {submitting ? (
                   <>

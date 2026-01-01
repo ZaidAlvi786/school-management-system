@@ -254,21 +254,21 @@ export default function TeacherPaperGeneratorPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+      <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8 flex items-center justify-between">
+          <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Paper Generator</h2>
-              <p className="text-gray-600">Generate Punjab Board 2025 curriculum exam papers using AI. Upload a sample to replicate its exact format and design.</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Paper Generator</h2>
+              <p className="text-sm sm:text-base text-gray-600">Generate Punjab Board 2025 curriculum exam papers using AI. Upload a sample to replicate its exact format and design.</p>
             </div>
             <Dialog open={showDialog} onOpenChange={setShowDialog}>
               <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white">
+                <Button className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white">
                   <Plus className="mr-2 h-4 w-4" />
                   Generate Paper
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
                 <DialogHeader>
                   <DialogTitle>Generate New Paper</DialogTitle>
                   <DialogDescription>

@@ -91,6 +91,13 @@ export default function TeacherHomeworkPage() {
     }
   }, [status]);
 
+  // Debug: Log classes when they change
+  useEffect(() => {
+    if (classes.length > 0) {
+      console.log("Classes loaded:", classes.length, classes);
+    }
+  }, [classes]);
+
   const fetchData = async () => {
     try {
       const res = await fetch("/api/homework");
@@ -270,13 +277,13 @@ export default function TeacherHomeworkPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+      <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-7xl mx-auto">
-        <div className="mb-8 animate-slide-up">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Daily Homework</h2>
-          <p className="text-gray-600">Assign homework based on topics covered today</p>
+        <div className="mb-6 sm:mb-8 animate-slide-up">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Daily Homework</h2>
+          <p className="text-sm sm:text-base text-gray-600">Assign homework based on topics covered today</p>
         </div>
-        <div className="flex justify-end mb-8">
+        <div className="flex justify-end mb-6 sm:mb-8">
           <Dialog open={showDialog} onOpenChange={setShowDialog}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-lg">
@@ -284,7 +291,7 @@ export default function TeacherHomeworkPage() {
                 Add Daily Homework
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
               <DialogHeader>
                 <DialogTitle>Add Daily Homework</DialogTitle>
                 <DialogDescription>
@@ -299,17 +306,26 @@ export default function TeacherHomeworkPage() {
                     onValueChange={handleClassChange}
                     required
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class" />
+                    <SelectTrigger id="classId">
+                      <SelectValue placeholder={classes.length === 0 ? "Loading classes..." : "Select class"} />
                     </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls._id} value={cls._id}>
-                          {cls.name} (Level {cls.level})
+                    <SelectContent className="z-[200]">
+                      {classes.length === 0 ? (
+                        <SelectItem value="loading" disabled>
+                          No classes available
                         </SelectItem>
-                      ))}
+                      ) : (
+                        classes.map((cls) => (
+                          <SelectItem key={cls._id} value={cls._id}>
+                            {cls.name} (Level {cls.level})
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
+                  {classes.length === 0 && (
+                    <p className="text-xs text-gray-500">Loading classes...</p>
+                  )}
                 </div>
 
                 {selectedClass && (
