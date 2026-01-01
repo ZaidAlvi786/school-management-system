@@ -32,21 +32,48 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all subjects assigned to this teacher
+    // First get subjects with class_id
     const { data: subjects, error: subjectsError } = await supabase
       .from('subjects')
-      .select('id, name, code, class_id, class:classes(name, level)')
+      .select('id, name, code, class_id')
       .eq('teacher_id', teacherUser.id);
 
     if (subjectsError) {
       throw subjectsError;
     }
 
+    if (!subjects || subjects.length === 0) {
+      return NextResponse.json({ classes: [] });
+    }
+
+    // Get unique class IDs
+    const uniqueClassIds = [...new Set(subjects.map((s: any) => s.class_id))];
+    
+    // Fetch all classes at once
+    const { data: classesData, error: classesError } = await supabase
+      .from('classes')
+      .select('id, name, level')
+      .in('id', uniqueClassIds);
+
+    if (classesError) {
+      throw classesError;
+    }
+
+    // Create a map of class_id to class data
+    const classMap = new Map();
+    (classesData || []).forEach((cls: any) => {
+      classMap.set(cls.id, cls);
+    });
+
     // Group subjects by class
     const classesMap = new Map();
     
-    for (const subject of subjects || []) {
+    for (const subject of subjects) {
       const classId = subject.class_id;
       if (!classesMap.has(classId)) {
+        const classInfo = classMap.get(classId);
+        
+        // Fetch sections for this class
         const { data: sections } = await supabase
           .from('sections')
           .select('id, name')
@@ -54,19 +81,21 @@ export async function GET(request: NextRequest) {
         
         classesMap.set(classId, {
           _id: classId,
-          name: (subject.class as any)?.name || "",
-          level: (subject.class as any)?.level || 0,
+          name: classInfo?.name || "Unknown Class",
+          level: classInfo?.level || 0,
           subjects: [],
           sections: sections || [],
         });
       }
       
       const classData = classesMap.get(classId);
-      classData.subjects.push({
-        _id: subject.id,
-        name: subject.name,
-        code: subject.code,
-      });
+      if (classData) {
+        classData.subjects.push({
+          _id: subject.id,
+          name: subject.name,
+          code: subject.code,
+        });
+      }
     }
 
     const classes = Array.from(classesMap.values());
