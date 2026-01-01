@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Camera, CheckCircle2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface FaceRegistrationDialogProps {
   open: boolean;
@@ -32,6 +33,8 @@ export default function FaceRegistrationDialog({
   const [capturing, setCapturing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
+  const detectionAttemptsRef = useRef(0);
 
   useEffect(() => {
     if (open) {
@@ -47,11 +50,22 @@ export default function FaceRegistrationDialog({
     try {
       setLoading(true);
       setError(null);
+      detectionAttemptsRef.current = 0;
+
+      toast({
+        title: "Loading Models",
+        description: "Loading face recognition models... This may take a moment.",
+      });
 
       // Dynamically import face-api.js only on client side
       // Use dynamic import with proper error handling
       const faceapi = await import("face-api.js").catch((err) => {
         console.error("Failed to load face-api.js:", err);
+        toast({
+          title: "Library Error",
+          description: "Face recognition library failed to load. Please refresh the page.",
+          variant: "destructive",
+        });
         throw new Error("Face recognition library failed to load. Please refresh the page.");
       });
 
@@ -63,11 +77,26 @@ export default function FaceRegistrationDialog({
       
       console.log("Loading face recognition models from:", MODEL_URL);
       
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      ]);
+      toast({
+        title: "Downloading Models",
+        description: `Downloading models from ${MODEL_URL === "/models" ? "local files" : "CDN"}...`,
+      });
+
+      try {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+      } catch (modelErr: any) {
+        console.error("Model loading error:", modelErr);
+        toast({
+          title: "Model Loading Failed",
+          description: `Failed to load models from ${MODEL_URL}. Error: ${modelErr.message || "Unknown error"}. Please check your internet connection.`,
+          variant: "destructive",
+        });
+        throw new Error(`Failed to load models: ${modelErr.message || "Unknown error"}`);
+      }
 
       // Verify models are loaded
       const modelsLoaded = 
@@ -76,15 +105,30 @@ export default function FaceRegistrationDialog({
         faceapi.nets.faceRecognitionNet.isLoaded;
 
       if (!modelsLoaded) {
+        toast({
+          title: "Model Verification Failed",
+          description: "Models downloaded but failed verification. Please refresh and try again.",
+          variant: "destructive",
+        });
         throw new Error("Models failed to load properly");
       }
 
       console.log("✅ All models loaded successfully");
+      toast({
+        title: "Models Loaded",
+        description: "Face recognition models loaded successfully! Starting camera...",
+      });
       setModelsLoaded(true);
       startCamera();
     } catch (err: any) {
       console.error("Error loading models:", err);
-      setError("Failed to load face recognition models. Please refresh the page.");
+      const errorMsg = err.message || "Failed to load face recognition models. Please refresh the page.";
+      setError(errorMsg);
+      toast({
+        title: "Setup Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -92,29 +136,69 @@ export default function FaceRegistrationDialog({
 
   const startCamera = async () => {
     try {
+      toast({
+        title: "Requesting Camera",
+        description: "Please allow camera access when prompted...",
+      });
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           width: { ideal: 640 },
           height: { ideal: 480 },
           facingMode: "user" 
         },
+      }).catch((err: any) => {
+        console.error("Camera access error:", err);
+        let errorMsg = "Failed to access camera.";
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+          errorMsg = "Camera permission denied. Please allow camera access in your browser settings.";
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+          errorMsg = "No camera found. Please connect a camera and try again.";
+        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+          errorMsg = "Camera is being used by another application. Please close other apps using the camera.";
+        }
+        toast({
+          title: "Camera Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        setError(errorMsg);
+        throw err;
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
+        toast({
+          title: "Camera Connected",
+          description: "Initializing video feed...",
+        });
+        
         // Wait for video metadata to load
-        await new Promise((resolve) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
-              console.log("Video metadata loaded", {
-                width: videoRef.current?.videoWidth,
-                height: videoRef.current?.videoHeight
-              });
-              resolve(null);
-            };
+        await new Promise((resolve, reject) => {
+          if (!videoRef.current) {
+            reject(new Error("Video element not available"));
+            return;
           }
+
+          const timeout = setTimeout(() => {
+            reject(new Error("Video metadata timeout"));
+          }, 10000); // 10 second timeout
+
+          videoRef.current!.onloadedmetadata = () => {
+            clearTimeout(timeout);
+            console.log("Video metadata loaded", {
+              width: videoRef.current?.videoWidth,
+              height: videoRef.current?.videoHeight
+            });
+            resolve(null);
+          };
+
+          videoRef.current!.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error("Video element error"));
+          };
         });
         
         await videoRef.current.play();
@@ -122,11 +206,17 @@ export default function FaceRegistrationDialog({
         // Wait a bit more for video to actually start playing
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        toast({
+          title: "Ready",
+          description: "Camera ready! Position your face in the frame.",
+        });
+        
         startFaceDetection();
       }
     } catch (err: any) {
       console.error("Error accessing camera:", err);
-      setError("Failed to access camera. Please allow camera permissions.");
+      const errorMsg = err.message || "Failed to access camera. Please allow camera permissions.";
+      setError(errorMsg);
     }
   };
 
@@ -164,7 +254,14 @@ export default function FaceRegistrationDialog({
         
         // Check video dimensions
         if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
-          console.warn("Video has no dimensions yet");
+          detectionAttemptsRef.current++;
+          if (detectionAttemptsRef.current === 10) {
+            toast({
+              title: "Video Issue",
+              description: "Video feed has no dimensions. Please refresh and try again.",
+              variant: "destructive",
+            });
+          }
           return;
         }
 
@@ -201,17 +298,36 @@ export default function FaceRegistrationDialog({
             
             if (hasEyes) {
               console.log("Face and eyes detected!");
+              if (!faceDetected) {
+                toast({
+                  title: "Face Detected!",
+                  description: "Face and eyes detected. You can now register.",
+                });
+              }
               setFaceDetected(true);
               drawFaceDetection(detections);
+              detectionAttemptsRef.current = 0; // Reset on success
             } else {
               // If face detected but no eyes, still show face detected (maybe eyes not clear)
               console.log("Face detected but eyes not clear");
+              if (!faceDetected) {
+                toast({
+                  title: "Face Detected",
+                  description: "Face detected but eyes not clear. Try better lighting or move closer.",
+                });
+              }
               setFaceDetected(true);
               drawFaceDetection(detections);
             }
           } else if (basicDetection) {
             // Face detected but couldn't get landmarks - still accept it
             console.log("Face detected but landmarks failed");
+            if (!faceDetected) {
+              toast({
+                title: "Face Detected",
+                description: "Face detected. Proceeding with registration...",
+              });
+            }
             setFaceDetected(true);
             drawFaceDetection({ detection: basicDetection });
           } else {
@@ -219,11 +335,28 @@ export default function FaceRegistrationDialog({
             clearCanvas();
           }
         } else {
+          detectionAttemptsRef.current++;
+          // Show helpful message after many failed attempts
+          if (detectionAttemptsRef.current === 30) {
+            toast({
+              title: "Detection Tips",
+              description: "Make sure you're in good lighting, face the camera directly, and remove any glasses or masks.",
+            });
+            detectionAttemptsRef.current = 0; // Reset counter
+          }
           setFaceDetected(false);
           clearCanvas();
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Face detection error:", err);
+        detectionAttemptsRef.current++;
+        if (detectionAttemptsRef.current === 5) {
+          toast({
+            title: "Detection Error",
+            description: `Face detection error: ${err.message || "Unknown error"}. Please try refreshing.`,
+            variant: "destructive",
+          });
+        }
         setFaceDetected(false);
         clearCanvas();
       }
@@ -321,6 +454,11 @@ export default function FaceRegistrationDialog({
       setIsProcessing(true);
       setError(null);
 
+      toast({
+        title: "Capturing Face",
+        description: "Processing your face data...",
+      });
+
       const faceapi = await import("face-api.js");
       
       // Use same options as detection for consistency
@@ -336,7 +474,13 @@ export default function FaceRegistrationDialog({
         .withFaceDescriptor();
 
       if (!detection) {
-        setError("No face detected. Please position your face in the frame.");
+        const errorMsg = "No face detected. Please position your face in the frame.";
+        setError(errorMsg);
+        toast({
+          title: "Detection Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
         setIsProcessing(false);
         setCapturing(false);
         return;
@@ -344,6 +488,11 @@ export default function FaceRegistrationDialog({
 
       // Extract descriptor (128-dimensional vector)
       const faceDescriptor = Array.from(detection.descriptor);
+
+      toast({
+        title: "Registering Face",
+        description: "Sending face data to server...",
+      });
 
       // Register face
       const response = await fetch("/api/student/face/register", {
@@ -355,16 +504,33 @@ export default function FaceRegistrationDialog({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to register face");
+        const errorMsg = data.error || "Failed to register face";
+        toast({
+          title: "Registration Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        throw new Error(errorMsg);
       }
 
       // Success
+      toast({
+        title: "Success!",
+        description: "Your face has been registered successfully!",
+      });
+      
       stopCamera();
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
       console.error("Error registering face:", err);
-      setError(err.message || "Failed to register face. Please try again.");
+      const errorMsg = err.message || "Failed to register face. Please try again.";
+      setError(errorMsg);
+      toast({
+        title: "Registration Error",
+        description: errorMsg,
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
       setCapturing(false);
