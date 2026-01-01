@@ -61,12 +61,25 @@ export default function FaceRegistrationDialog({
         ? "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights"
         : "/models";
       
+      console.log("Loading face recognition models from:", MODEL_URL);
+      
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
       ]);
 
+      // Verify models are loaded
+      const modelsLoaded = 
+        faceapi.nets.tinyFaceDetector.isLoaded &&
+        faceapi.nets.faceLandmark68Net.isLoaded &&
+        faceapi.nets.faceRecognitionNet.isLoaded;
+
+      if (!modelsLoaded) {
+        throw new Error("Models failed to load properly");
+      }
+
+      console.log("✅ All models loaded successfully");
       setModelsLoaded(true);
       startCamera();
     } catch (err: any) {
@@ -81,8 +94,8 @@ export default function FaceRegistrationDialog({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
-          width: 640, 
-          height: 480,
+          width: { ideal: 640 },
+          height: { ideal: 480 },
           facingMode: "user" 
         },
       });
@@ -90,7 +103,25 @@ export default function FaceRegistrationDialog({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        
+        // Wait for video metadata to load
+        await new Promise((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              console.log("Video metadata loaded", {
+                width: videoRef.current?.videoWidth,
+                height: videoRef.current?.videoHeight
+              });
+              resolve(null);
+            };
+          }
+        });
+        
         await videoRef.current.play();
+        
+        // Wait a bit more for video to actually start playing
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         startFaceDetection();
       }
     } catch (err: any) {
@@ -100,43 +131,89 @@ export default function FaceRegistrationDialog({
   };
 
   const startFaceDetection = async () => {
-    if (!videoRef.current || !modelsLoaded) return;
+    if (!videoRef.current || !modelsLoaded) {
+      console.log("Face detection not started:", { 
+        hasVideo: !!videoRef.current, 
+        modelsLoaded 
+      });
+      return;
+    }
 
-    // Wait a bit for video to be ready
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait for video to be ready and playing
+    let attempts = 0;
+    while (attempts < 20 && (!videoRef.current || videoRef.current.readyState < 2)) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    if (!videoRef.current || videoRef.current.readyState < 2) {
+      console.error("Video not ready after waiting");
+      setError("Camera video is not ready. Please refresh and try again.");
+      return;
+    }
+
+    console.log("Starting face detection", {
+      videoWidth: videoRef.current.videoWidth,
+      videoHeight: videoRef.current.videoHeight,
+      readyState: videoRef.current.readyState
+    });
 
     const detectFace = async () => {
       try {
-        if (!videoRef.current || videoRef.current.readyState !== 4) {
-          return; // Video not ready
+        if (!videoRef.current) return;
+        
+        // Check video dimensions
+        if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+          console.warn("Video has no dimensions yet");
+          return;
         }
 
         const faceapi = await import("face-api.js");
         
-        // Use lower score threshold (0.3 instead of default 0.5) for more sensitive detection
-        // inputSize: 320 makes it faster but less accurate, 416 is more accurate
+        // Use very low threshold for maximum sensitivity
         const options = new faceapi.TinyFaceDetectorOptions({ 
-          inputSize: 416, // Higher resolution for better detection
-          scoreThreshold: 0.3 // Lower threshold = more sensitive (default is 0.5)
+          inputSize: 320, // Smaller for faster processing
+          scoreThreshold: 0.1 // Very low threshold for maximum sensitivity
         });
 
-        const detections = await faceapi
-          .detectSingleFace(videoRef.current, options)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        // Try detection without landmarks first to see if basic detection works
+        const basicDetection = await faceapi.detectSingleFace(
+          videoRef.current, 
+          options
+        );
 
-        if (detections) {
-          // Check if eyes are detected (landmarks 36-47 are eyes)
-          const landmarks = detections.landmarks;
-          const leftEye = landmarks.getLeftEye();
-          const rightEye = landmarks.getRightEye();
+        if (basicDetection) {
+          console.log("Basic face detected, getting landmarks...");
           
-          // Verify both eyes are detected
-          const hasEyes = leftEye.length > 0 && rightEye.length > 0;
-          
-          if (hasEyes) {
+          // Now get full detection with landmarks
+          const detections = await faceapi
+            .detectSingleFace(videoRef.current, options)
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+
+          if (detections && detections.landmarks) {
+            const landmarks = detections.landmarks;
+            const leftEye = landmarks.getLeftEye();
+            const rightEye = landmarks.getRightEye();
+            
+            // Verify both eyes are detected
+            const hasEyes = leftEye && leftEye.length > 0 && rightEye && rightEye.length > 0;
+            
+            if (hasEyes) {
+              console.log("Face and eyes detected!");
+              setFaceDetected(true);
+              drawFaceDetection(detections);
+            } else {
+              // If face detected but no eyes, still show face detected (maybe eyes not clear)
+              console.log("Face detected but eyes not clear");
+              setFaceDetected(true);
+              drawFaceDetection(detections);
+            }
+          } else if (basicDetection) {
+            // Face detected but couldn't get landmarks - still accept it
+            console.log("Face detected but landmarks failed");
             setFaceDetected(true);
-            drawFaceDetection(detections);
+            drawFaceDetection({ detection: basicDetection });
           } else {
             setFaceDetected(false);
             clearCanvas();
@@ -152,7 +229,9 @@ export default function FaceRegistrationDialog({
       }
     };
 
-    detectionIntervalRef.current = setInterval(detectFace, 150); // Slightly slower for better performance
+    // Start detection immediately, then continue with interval
+    detectFace();
+    detectionIntervalRef.current = setInterval(detectFace, 200);
   };
 
   const drawFaceDetection = (detection: any) => {
@@ -164,13 +243,18 @@ export default function FaceRegistrationDialog({
 
     if (!ctx) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Ensure canvas matches video dimensions
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw face bounding box
-    const box = detection.detection.box;
+    // Handle both detection formats
+    const box = detection.detection?.box || detection.box;
+    if (!box) return;
+
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
     const radius = Math.max(box.width, box.height) / 2;
@@ -191,25 +275,33 @@ export default function FaceRegistrationDialog({
 
     // Draw eye landmarks if available
     if (detection.landmarks) {
-      const landmarks = detection.landmarks;
-      const leftEye = landmarks.getLeftEye();
-      const rightEye = landmarks.getRightEye();
-      
-      ctx.fillStyle = faceDetected ? "#22c55e" : "#6b7280";
-      
-      // Draw left eye points
-      leftEye.forEach((point: any) => {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
-        ctx.fill();
-      });
-      
-      // Draw right eye points
-      rightEye.forEach((point: any) => {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
-        ctx.fill();
-      });
+      try {
+        const landmarks = detection.landmarks;
+        const leftEye = landmarks.getLeftEye();
+        const rightEye = landmarks.getRightEye();
+        
+        ctx.fillStyle = faceDetected ? "#22c55e" : "#6b7280";
+        
+        // Draw left eye points
+        if (leftEye && leftEye.length > 0) {
+          leftEye.forEach((point: any) => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+            ctx.fill();
+          });
+        }
+        
+        // Draw right eye points
+        if (rightEye && rightEye.length > 0) {
+          rightEye.forEach((point: any) => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+            ctx.fill();
+          });
+        }
+      } catch (err) {
+        console.warn("Error drawing eye landmarks:", err);
+      }
     }
   };
 
@@ -344,11 +436,12 @@ export default function FaceRegistrationDialog({
                   className="absolute top-0 left-0 w-full h-full"
                   style={{ pointerEvents: "none" }}
                 />
-                {!faceDetected && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                {!faceDetected && modelsLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                     <div className="text-center text-white">
-                      <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>Position your face in the frame</p>
+                      <Camera className="h-12 w-12 mx-auto mb-2 opacity-50 animate-pulse" />
+                      <p className="text-sm">Position your face in the frame</p>
+                      <p className="text-xs mt-2 opacity-75">Make sure you&apos;re in good lighting</p>
                     </div>
                   </div>
                 )}
