@@ -99,30 +99,56 @@ export default function FaceAttendanceDialog({
   const startFaceDetection = async () => {
     if (!videoRef.current || !modelsLoaded) return;
 
+    // Wait a bit for video to be ready
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const detectFace = async () => {
       try {
+        if (!videoRef.current || videoRef.current.readyState !== 4) {
+          return; // Video not ready
+        }
+
         const faceapi = await import("face-api.js");
+        
+        // Use lower score threshold (0.3 instead of default 0.5) for more sensitive detection
+        const options = new faceapi.TinyFaceDetectorOptions({ 
+          inputSize: 416, // Higher resolution for better detection
+          scoreThreshold: 0.3 // Lower threshold = more sensitive (default is 0.5)
+        });
+
         const detections = await faceapi
-          .detectSingleFace(
-            videoRef.current!,
-            new faceapi.TinyFaceDetectorOptions()
-          )
+          .detectSingleFace(videoRef.current, options)
           .withFaceLandmarks()
           .withFaceDescriptor();
 
         if (detections) {
-          setFaceDetected(true);
-          drawFaceDetection(detections);
+          // Check if eyes are detected (landmarks 36-47 are eyes)
+          const landmarks = detections.landmarks;
+          const leftEye = landmarks.getLeftEye();
+          const rightEye = landmarks.getRightEye();
+          
+          // Verify both eyes are detected
+          const hasEyes = leftEye.length > 0 && rightEye.length > 0;
+          
+          if (hasEyes) {
+            setFaceDetected(true);
+            drawFaceDetection(detections);
+          } else {
+            setFaceDetected(false);
+            clearCanvas();
+          }
         } else {
           setFaceDetected(false);
           clearCanvas();
         }
       } catch (err) {
         console.error("Face detection error:", err);
+        setFaceDetected(false);
+        clearCanvas();
       }
     };
 
-    detectionIntervalRef.current = setInterval(detectFace, 100);
+    detectionIntervalRef.current = setInterval(detectFace, 150); // Slightly slower for better performance
   };
 
   const drawFaceDetection = (detection: any) => {
@@ -179,9 +205,15 @@ export default function FaceAttendanceDialog({
 
       const faceapi = await import("face-api.js");
       
+      // Use same options as detection for consistency
+      const options = new faceapi.TinyFaceDetectorOptions({ 
+        inputSize: 416,
+        scoreThreshold: 0.3
+      });
+      
       // Get face descriptor
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(videoRef.current, options)
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -319,12 +351,16 @@ export default function FaceAttendanceDialog({
 
               <div className="flex items-center justify-center gap-2">
                 <div
-                  className={`h-3 w-3 rounded-full ${
-                    faceDetected ? "bg-green-500" : "bg-gray-400"
+                  className={`h-3 w-3 rounded-full transition-colors ${
+                    faceDetected ? "bg-green-500 animate-pulse" : "bg-gray-400"
                   }`}
                 />
                 <span className="text-sm text-gray-600">
-                  {faceDetected ? "Face detected - Keep steady!" : "Waiting for face..."}
+                  {faceDetected 
+                    ? "✅ Face and eyes detected - Keep steady!" 
+                    : modelsLoaded 
+                    ? "👀 Looking for face and eyes..." 
+                    : "Loading..."}
                 </span>
               </div>
 
