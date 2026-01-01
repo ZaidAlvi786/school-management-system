@@ -170,7 +170,7 @@ export default function TeacherGradesPage() {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 ml-64">
+        <div className="flex-1 lg:ml-64">
           <LoadingSpinner />
         </div>
       </div>
@@ -180,21 +180,21 @@ export default function TeacherGradesPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+      <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-7xl mx-auto">
-        <div className="mb-8 animate-slide-up">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Student Grades</h2>
-          <p className="text-gray-600">Manage and record student grades</p>
+        <div className="mb-6 sm:mb-8 animate-slide-up">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Student Grades</h2>
+          <p className="text-sm sm:text-base text-gray-600">Manage and record student grades</p>
         </div>
-        <div className="flex justify-end mb-8">
+        <div className="flex justify-end mb-6 sm:mb-8">
           <Dialog open={showDialog} onOpenChange={setShowDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-lg">
+              <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-lg">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Grade
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[95vw] sm:w-full">
               <DialogHeader>
                 <DialogTitle>Add Grade</DialogTitle>
                 <DialogDescription>Record a new grade for a student</DialogDescription>
@@ -237,7 +237,7 @@ export default function TeacherGradesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="marks">Marks</Label>
                     <Input

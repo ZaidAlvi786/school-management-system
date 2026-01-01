@@ -108,7 +108,7 @@ export default function TeacherQRCodesPage() {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 ml-64">
+        <div className="flex-1 lg:ml-64">
           <LoadingSpinner />
         </div>
       </div>
@@ -119,16 +119,16 @@ export default function TeacherQRCodesPage() {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <Sidebar />
-        <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="max-w-7xl mx-auto">
             <Card>
-              <CardContent className="py-16 text-center">
-                <UserCheck className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-                <p className="text-gray-600 mb-4">
+              <CardContent className="py-12 sm:py-16 text-center">
+                <UserCheck className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-gray-400 mb-4" />
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+                <p className="text-sm sm:text-base text-gray-600 mb-4">
                   Only class incharge teachers can view student QR codes.
                 </p>
-                <p className="text-gray-500">
+                <p className="text-xs sm:text-sm text-gray-500">
                   Please contact your principal to be assigned as a class incharge.
                 </p>
               </CardContent>
@@ -142,11 +142,11 @@ export default function TeacherQRCodesPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+      <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Student QR Codes</h2>
-          <p className="text-gray-600">Generate and download QR codes for student attendance</p>
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Student QR Codes</h2>
+          <p className="text-sm sm:text-base text-gray-600">Generate and download QR codes for student attendance</p>
         </div>
 
         {networkInfo && (

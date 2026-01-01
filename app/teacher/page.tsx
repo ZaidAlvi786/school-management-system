@@ -127,14 +127,14 @@ export default function TeacherDashboard() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8 animate-in fade-in slide-in-from-right-4 duration-300">
+      <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="max-w-7xl mx-auto">
           {/* Welcome Section */}
-          <div className="mb-8 animate-slide-up">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <div className="mb-6 sm:mb-8 animate-slide-up">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
               Welcome back, {session?.user?.name}!
             </h1>
-            <p className="text-gray-600">Here&apos;s your teaching overview for today.</p>
+            <p className="text-sm sm:text-base text-gray-600">Here&apos;s your teaching overview for today.</p>
           </div>
 
           {/* Stats Cards */}
