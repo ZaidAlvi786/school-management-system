@@ -252,6 +252,41 @@ export default function StudentHomeworkPage() {
                                   {item.assigned_by?.name || "Unknown Teacher"}
                                 </span>
                               </div>
+                              {(!item.completion_status || (item.completion_status !== 'approved' && item.completion_status !== 'completed' && item.completion_status !== 'pending')) && (
+                                <div className="mt-4">
+                                  <Button
+                                    onClick={() => handleMarkAsDone(item.id)}
+                                    disabled={markingDone === item.id}
+                                    className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
+                                  >
+                                    {markingDone === item.id ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Marking...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                        Mark as Done
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              )}
+                              {item.completion_status === 'completed' || item.completion_status === 'pending' ? (
+                                <div className="mt-4">
+                                  <p className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                                    ✓ Marked as done. Waiting for teacher approval.
+                                  </p>
+                                </div>
+                              ) : null}
+                              {item.completion_status === 'approved' && item.approved_at ? (
+                                <div className="mt-4">
+                                  <p className="text-sm text-green-600 bg-green-50 p-2 rounded-lg border border-green-200">
+                                    ✓ Approved on {new Date(item.approved_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -347,7 +382,7 @@ export default function StudentHomeworkPage() {
                                     {item.assigned_by?.name || "Unknown Teacher"}
                                   </span>
                                 </div>
-                                {item.completion_status !== 'approved' && item.completion_status !== 'completed' && item.completion_status !== 'pending' && (
+                                {(!item.completion_status || (item.completion_status !== 'approved' && item.completion_status !== 'completed' && item.completion_status !== 'pending')) && (
                                   <div className="mt-4">
                                     <Button
                                       onClick={() => handleMarkAsDone(item.id)}
