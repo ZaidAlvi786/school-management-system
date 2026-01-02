@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Camera, CheckCircle2, XCircle } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface FaceAttendanceDialogProps {
   open: boolean;
@@ -32,7 +33,11 @@ export default function FaceAttendanceDialog({
   const [faceDetected, setFaceDetected] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>("Initializing...");
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const faceApiRef = useRef<any>(null);
+  const consecutiveDetectionsRef = useRef(0);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
@@ -51,6 +56,7 @@ export default function FaceAttendanceDialog({
 
       // Dynamically import face-api.js
       const faceapi = await import("face-api.js");
+      faceApiRef.current = faceapi;
 
       // Load models from CDN (for production on Vercel)
       // Alternative: Use "/models" for local development if you download models
@@ -104,11 +110,11 @@ export default function FaceAttendanceDialog({
 
     const detectFace = async () => {
       try {
-        if (!videoRef.current || videoRef.current.readyState !== 4) {
+        if (!videoRef.current || videoRef.current.readyState !== 4 || !faceApiRef.current) {
           return; // Video not ready
         }
 
-        const faceapi = await import("face-api.js");
+        const faceapi = faceApiRef.current;
         
         // Use lower score threshold (0.3 instead of default 0.5) for more sensitive detection
         const options = new faceapi.TinyFaceDetectorOptions({ 
@@ -122,28 +128,27 @@ export default function FaceAttendanceDialog({
           .withFaceDescriptor();
 
         if (detections) {
-          // Check if eyes are detected (landmarks 36-47 are eyes)
-          const landmarks = detections.landmarks;
-          const leftEye = landmarks.getLeftEye();
-          const rightEye = landmarks.getRightEye();
+          setFaceDetected(true);
+          drawFaceDetection(detections);
+          setStatusMessage("Face detected! Hold still...");
           
-          // Verify both eyes are detected
-          const hasEyes = leftEye.length > 0 && rightEye.length > 0;
-          
-          if (hasEyes) {
-            setFaceDetected(true);
-            drawFaceDetection(detections);
-          } else {
-            setFaceDetected(false);
-            clearCanvas();
+          // Increment consecutive detections
+          consecutiveDetectionsRef.current += 1;
+
+          // If face is stable for enough frames, auto-mark attendance
+          if (consecutiveDetectionsRef.current > 5 && !scanning && !success && !isProcessing) {
+             scanAndMarkAttendance();
           }
         } else {
           setFaceDetected(false);
+          consecutiveDetectionsRef.current = 0;
+          setStatusMessage("Looking for face...");
           clearCanvas();
         }
       } catch (err) {
         console.error("Face detection error:", err);
         setFaceDetected(false);
+        consecutiveDetectionsRef.current = 0;
         clearCanvas();
       }
     };
@@ -195,15 +200,15 @@ export default function FaceAttendanceDialog({
   };
 
   const scanAndMarkAttendance = async () => {
-    if (!videoRef.current || !faceDetected || scanning) return;
+    if (!videoRef.current || scanning || isProcessing) return;
 
     try {
       setScanning(true);
       setIsProcessing(true);
       setError(null);
-      setSuccess(false);
+      setStatusMessage("Verifying face...");
 
-      const faceapi = await import("face-api.js");
+      const faceapi = faceApiRef.current || await import("face-api.js");
       
       // Use same options as detection for consistency
       const options = new faceapi.TinyFaceDetectorOptions({ 
@@ -218,9 +223,11 @@ export default function FaceAttendanceDialog({
         .withFaceDescriptor();
 
       if (!detection) {
-        setError("No face detected. Please position your face in the frame.");
+        // Don't show error toast here as it might be a temporary glitch during auto-scan
+        // Just reset scanning state
         setIsProcessing(false);
         setScanning(false);
+        consecutiveDetectionsRef.current = 0; // Reset stability
         return;
       }
 
@@ -238,17 +245,43 @@ export default function FaceAttendanceDialog({
 
       if (!response.ok) {
         if (data.alreadyMarked) {
-          setError("Attendance already marked for today.");
+          const msg = "Attendance already marked for today.";
+          setError(msg);
+          toast({
+            title: "Already Marked",
+            description: msg,
+            variant: "default",
+          });
+          setSuccess(true); // Treat as success to close dialog
+          setTimeout(() => {
+            onSuccess();
+            onOpenChange(false);
+            setSuccess(false);
+          }, 2000);
         } else {
-          setError(data.error || "Face recognition failed. Please try again.");
+          const msg = data.error || "Face recognition failed.";
+          setError(msg);
+          toast({
+            title: "Verification Failed",
+            description: msg,
+            variant: "destructive",
+          });
+          // Reset to allow retry
+          setIsProcessing(false);
+          setScanning(false);
+          consecutiveDetectionsRef.current = 0;
         }
-        setIsProcessing(false);
-        setScanning(false);
         return;
       }
 
       // Success
       setSuccess(true);
+      setStatusMessage("Attendance Marked!");
+      toast({
+        title: "Success!",
+        description: "Attendance marked successfully.",
+        className: "bg-green-500 text-white",
+      });
       stopCamera();
       
       // Auto close after 2 seconds
@@ -259,9 +292,16 @@ export default function FaceAttendanceDialog({
       }, 2000);
     } catch (err: any) {
       console.error("Error marking attendance:", err);
-      setError(err.message || "Failed to mark attendance. Please try again.");
+      const msg = err.message || "Failed to mark attendance.";
+      setError(msg);
+       toast({
+        title: "Error",
+        description: msg,
+        variant: "destructive",
+      });
       setIsProcessing(false);
       setScanning(false);
+      consecutiveDetectionsRef.current = 0;
     }
   };
 
@@ -282,6 +322,7 @@ export default function FaceAttendanceDialog({
 
     clearCanvas();
     setFaceDetected(false);
+    consecutiveDetectionsRef.current = 0;
   };
 
   const handleClose = () => {
@@ -298,7 +339,7 @@ export default function FaceAttendanceDialog({
         <DialogHeader>
           <DialogTitle>Mark Today&apos;s Attendance</DialogTitle>
           <DialogDescription>
-            Position your face in the circle and keep the camera steady. When the border turns green, click &quot;Scan &amp; Mark Attendance&quot;.
+            Position your face in the circle. The system will automatically scan and mark your attendance when ready.
           </DialogDescription>
         </DialogHeader>
 
@@ -357,9 +398,9 @@ export default function FaceAttendanceDialog({
                 />
                 <span className="text-sm text-gray-600">
                   {faceDetected 
-                    ? "✅ Face and eyes detected - Keep steady!" 
+                    ? `✅ ${statusMessage}`
                     : modelsLoaded 
-                    ? "👀 Looking for face and eyes..." 
+                    ? "👀 Looking for face..." 
                     : "Loading..."}
                 </span>
               </div>
