@@ -96,13 +96,13 @@ export default function TeacherMyAttendancePage() {
       if (response.ok) {
         const data = await response.json();
         setAttendance(data);
-        
+
         // Calculate stats
         const presentCount = data.filter((a: TeacherAttendance) => a.status === "present" || a.status === "late").length;
         const absentCount = data.filter((a: TeacherAttendance) => a.status === "absent").length;
         const lateCount = data.filter((a: TeacherAttendance) => a.is_late === true).length;
         const total = data.length;
-        
+
         setStats({
           presentDays: presentCount,
           absentDays: absentCount,
@@ -124,9 +124,9 @@ export default function TeacherMyAttendancePage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen items-center justify-center">
         <Sidebar />
-        <div className="flex-1 ml-0 md:ml-64">
+        <div className="flex-1 ml-0 md:ml-64 flex items-center justify-center min-h-screen">
           <LoadingSpinner />
         </div>
       </div>
@@ -162,16 +162,16 @@ export default function TeacherMyAttendancePage() {
                     Mark Today&apos;s Attendance
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {isTodayMarked 
+                    {isTodayMarked
                       ? todayAttendance?.is_late
                         ? `Your attendance is marked. You were ${todayAttendance.late_minutes} minutes late.`
                         : "Your attendance for today has already been marked."
                       : (hasRegisteredFace === false || hasRegisteredFace === null) && (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)
-                      ? "Please register your face or fingerprint first to mark attendance."
-                      : "Choose a method below to mark your attendance."}
+                        ? "Please register your face or fingerprint first to mark attendance."
+                        : "Choose a method below to mark your attendance."}
                   </p>
                 </div>
-                
+
                 {/* Registration Buttons */}
                 {((hasRegisteredFace === false || hasRegisteredFace === null) || (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)) && (
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -338,12 +338,11 @@ export default function TeacherMyAttendancePage() {
                           )}
                         </div>
                       </div>
-                      <Badge className={`${
-                        record.status === 'present' ? 'bg-green-500' :
-                        record.status === 'late' ? 'bg-yellow-500' :
-                        record.status === 'absent' ? 'bg-red-500' :
-                        'bg-gray-500'
-                      } text-white`}>
+                      <Badge className={`${record.status === 'present' ? 'bg-green-500' :
+                          record.status === 'late' ? 'bg-yellow-500' :
+                            record.status === 'absent' ? 'bg-red-500' :
+                              'bg-gray-500'
+                        } text-white`}>
                         {record.status}
                       </Badge>
                     </div>
