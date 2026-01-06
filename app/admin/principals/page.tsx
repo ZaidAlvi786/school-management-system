@@ -98,14 +98,10 @@ export default function PrincipalsPage() {
 
       setPrincipalSearchLoading(true);
       try {
-        const res = await fetch(
-          `/api/admin/users/search?email=${encodeURIComponent(formData.email)}&role=principal`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setPrincipalSearchResults(data.users || []);
-          setShowPrincipalSuggestions(data.users && data.users.length > 0);
-        }
+        const { searchUsers } = await import("@/lib/fastapi-client");
+        const data = await searchUsers(formData.email, "principal");
+        setPrincipalSearchResults(data.users || []);
+        setShowPrincipalSuggestions(data.users && data.users.length > 0);
       } catch (error) {
         console.error("Error searching principals:", error);
       } finally {
@@ -119,11 +115,9 @@ export default function PrincipalsPage() {
 
   const fetchPrincipals = async () => {
     try {
-      const res = await fetch("/api/admin/principals");
-      if (res.ok) {
-        const data = await res.json();
-        setPrincipals(data);
-      }
+      const { getPrincipals } = await import("@/lib/fastapi-client");
+      const data = await getPrincipals();
+      setPrincipals(Array.isArray(data) ? data : []);
     } catch (error) {
       toast({
         title: "Error",
@@ -149,30 +143,24 @@ export default function PrincipalsPage() {
 
     try {
       const url = editingPrincipal 
-        ? `/api/admin/principals?id=${editingPrincipal._id}`
-        : "/api/admin/principals";
-      const method = editingPrincipal ? "PUT" : "POST";
-      const body = editingPrincipal
-        ? {
-            id: editingPrincipal._id,
-            name: formData.name || undefined,
-            phone: formData.phone || undefined,
-            qualification: formData.qualification || undefined,
-            experience: formData.experience || 0,
-          }
-        : {
-            email: formData.email,
-            name: formData.name || undefined,
-            phone: formData.phone || undefined,
-          };
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
+        ? "update"
+        : "create";
+      const { createPrincipal, updatePrincipal } = await import("@/lib/fastapi-client");
+      if (url === "update") {
+        await updatePrincipal({
+          id: editingPrincipal!._id,
+          name: formData.name || undefined,
+          phone: formData.phone || undefined,
+          qualification: formData.qualification || undefined,
+          experience: formData.experience || 0,
+        });
+      } else {
+        await createPrincipal({
+          email: formData.email,
+          name: formData.name || undefined,
+          phone: formData.phone || undefined,
+        });
+      }
         toast({
           title: "Success",
           description: editingPrincipal 
@@ -184,18 +172,10 @@ export default function PrincipalsPage() {
         setFormData({ email: "", name: "", phone: "", qualification: "", experience: 0 });
         setSelectedPrincipal(null);
         fetchPrincipals();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || (editingPrincipal ? "Failed to update principal" : "Failed to add principal"),
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: editingPrincipal ? "Failed to update principal" : "Failed to add principal",
+        description: error.message || (editingPrincipal ? "Failed to update principal" : "Failed to add principal"),
         variant: "destructive",
       });
     }
@@ -217,28 +197,17 @@ export default function PrincipalsPage() {
     if (!confirm("Are you sure you want to delete this principal? This will remove them from any assigned campus.")) return;
 
     try {
-      const res = await fetch(`/api/admin/principals?id=${principalId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
+      const { deletePrincipal } = await import("@/lib/fastapi-client");
+      await deletePrincipal(principalId);
         toast({
           title: "Success",
           description: "Principal deleted successfully",
         });
         fetchPrincipals();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to delete principal",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete principal",
+        description: error.message || "Failed to delete principal",
         variant: "destructive",
       });
     }
