@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Dialog,
   DialogContent,
@@ -11,77 +12,47 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Camera, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { markAttendance } from "@/lib/fastapi-client";
 
 interface FaceAttendanceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  classId?: string; // Required for students
 }
 
 export default function FaceAttendanceDialog({
   open,
   onOpenChange,
   onSuccess,
+  classId,
 }: FaceAttendanceDialogProps) {
+  const { data: session } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [modelsLoaded, setModelsLoaded] = useState(false);
-  const [faceDetected, setFaceDetected] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing...");
-  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const faceApiRef = useRef<any>(null);
-  const consecutiveDetectionsRef = useRef(0);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      loadModels();
+      startCamera();
     }
     return () => {
       stopCamera();
     };
   }, [open]);
 
-  const loadModels = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setSuccess(false);
-
-      // Dynamically import face-api.js
-      const faceapi = await import("face-api.js");
-      faceApiRef.current = faceapi;
-
-      // Load models from CDN (for production on Vercel)
-      // Alternative: Use "/models" for local development if you download models
-      const MODEL_URL = process.env.NODE_ENV === "production" 
-        ? "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights"
-        : "/models";
-      
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      ]);
-
-      setModelsLoaded(true);
-      startCamera();
-    } catch (err: any) {
-      console.error("Error loading models:", err);
-      setError("Failed to load face recognition models. Please refresh the page.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const startCamera = async () => {
     try {
+      setError(null);
+      setStatusMessage("Starting camera...");
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           width: 640, 
@@ -94,157 +65,68 @@ export default function FaceAttendanceDialog({
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         await videoRef.current.play();
-        startFaceDetection();
+        setStatusMessage("Position your face in the frame");
       }
     } catch (err: any) {
       console.error("Error accessing camera:", err);
       setError("Failed to access camera. Please allow camera permissions.");
+      setStatusMessage("Camera error");
     }
   };
 
-  const startFaceDetection = async () => {
-    if (!videoRef.current || !modelsLoaded) return;
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current || isProcessing) return;
 
-    // Wait a bit for video to be ready
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const detectFace = async () => {
-      try {
-        if (!videoRef.current || videoRef.current.readyState !== 4 || !faceApiRef.current) {
-          return; // Video not ready
-        }
-
-        const faceapi = faceApiRef.current;
-        
-        // Use lower score threshold (0.3 instead of default 0.5) for more sensitive detection
-        const options = new faceapi.TinyFaceDetectorOptions({ 
-          inputSize: 416, // Higher resolution for better detection
-          scoreThreshold: 0.3 // Lower threshold = more sensitive (default is 0.5)
-        });
-
-        const detections = await faceapi
-          .detectSingleFace(videoRef.current, options)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-
-        if (detections) {
-          setFaceDetected(true);
-          drawFaceDetection(detections);
-          setStatusMessage("Face detected! Hold still...");
-          
-          // Increment consecutive detections
-          consecutiveDetectionsRef.current += 1;
-
-          // If face is stable for enough frames, auto-mark attendance
-          if (consecutiveDetectionsRef.current > 5 && !scanning && !success && !isProcessing) {
-             scanAndMarkAttendance();
-          }
-        } else {
-          setFaceDetected(false);
-          consecutiveDetectionsRef.current = 0;
-          setStatusMessage("Looking for face...");
-          clearCanvas();
-        }
-      } catch (err) {
-        console.error("Face detection error:", err);
-        setFaceDetected(false);
-        consecutiveDetectionsRef.current = 0;
-        clearCanvas();
-      }
-    };
-
-    detectionIntervalRef.current = setInterval(detectFace, 150); // Slightly slower for better performance
-  };
-
-  const drawFaceDetection = (detection: any) => {
-    if (!canvasRef.current || !videoRef.current) return;
-
+    try {
+      const video = videoRef.current;
     const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) return;
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw face bounding box
-    const box = detection.detection.box;
-    const centerX = box.x + box.width / 2;
-    const centerY = box.y + box.height / 2;
-    const radius = Math.max(box.width, box.height) / 2;
-
-    // Draw circle guide
-    ctx.strokeStyle = faceDetected ? "#22c55e" : "#e5e7eb";
-    ctx.lineWidth = 3;
-    ctx.setLineDash(faceDetected ? [0] : [10, 5]);
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.stroke();
-
-    // Draw face box
-    ctx.strokeStyle = faceDetected ? "#22c55e" : "#6b7280";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([]);
-    ctx.strokeRect(box.x, box.y, box.width, box.height);
-  };
-
-  const clearCanvas = () => {
-    if (!canvasRef.current) return;
-    const ctx = canvasRef.current.getContext("2d");
-    if (ctx) {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      
+      ctx.drawImage(video, 0, 0);
+      
+      const imageData = canvas.toDataURL("image/jpeg", 0.8);
+      setCapturedImage(imageData);
+      setScanning(false);
+      
+      // Auto-submit after capture
+      markAttendanceFromImage(imageData);
+    } catch (err: any) {
+      console.error("Capture error:", err);
+      toast({
+        title: "Capture Failed",
+        description: "Failed to capture photo. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  const scanAndMarkAttendance = async () => {
-    if (!videoRef.current || scanning || isProcessing) return;
+  const markAttendanceFromImage = async (imageData?: string) => {
+    const imgData = imageData || capturedImage;
+    if (!imgData || isProcessing || !session?.user) return;
 
     try {
-      setScanning(true);
       setIsProcessing(true);
       setError(null);
       setStatusMessage("Verifying face...");
 
-      const faceapi = faceApiRef.current || await import("face-api.js");
-      
-      // Use same options as detection for consistency
-      const options = new faceapi.TinyFaceDetectorOptions({ 
-        inputSize: 416,
-        scoreThreshold: 0.3
-      });
-      
-      // Get face descriptor
-      const detection = await faceapi
-        .detectSingleFace(videoRef.current, options)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (!detection) {
-        // Don't show error toast here as it might be a temporary glitch during auto-scan
-        // Just reset scanning state
-        setIsProcessing(false);
-        setScanning(false);
-        consecutiveDetectionsRef.current = 0; // Reset stability
-        return;
+      if (!classId && session.user.role === "student") {
+        throw new Error("Class ID is required for students");
       }
 
-      // Extract descriptor (128-dimensional vector)
-      const faceDescriptor = Array.from(detection.descriptor);
+      // Mark attendance via FastAPI
+      const result = await markAttendance(
+        imgData,
+        session.user.role as "student" | "teacher",
+        classId,
+        "web"
+      );
 
-      // Mark attendance
-      const response = await fetch("/api/student/face/mark-attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ faceEncoding: faceDescriptor }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.alreadyMarked) {
+      if (result.already_marked) {
           const msg = "Attendance already marked for today.";
           setError(msg);
           toast({
@@ -252,25 +134,12 @@ export default function FaceAttendanceDialog({
             description: msg,
             variant: "default",
           });
-          setSuccess(true); // Treat as success to close dialog
+        setSuccess(true);
           setTimeout(() => {
             onSuccess();
             onOpenChange(false);
             setSuccess(false);
           }, 2000);
-        } else {
-          const msg = data.error || "Face recognition failed.";
-          setError(msg);
-          toast({
-            title: "Verification Failed",
-            description: msg,
-            variant: "destructive",
-          });
-          // Reset to allow retry
-          setIsProcessing(false);
-          setScanning(false);
-          consecutiveDetectionsRef.current = 0;
-        }
         return;
       }
 
@@ -279,7 +148,7 @@ export default function FaceAttendanceDialog({
       setStatusMessage("Attendance Marked!");
       toast({
         title: "Success!",
-        description: "Attendance marked successfully.",
+        description: result.message,
         className: "bg-green-500 text-white",
       });
       stopCamera();
@@ -301,35 +170,24 @@ export default function FaceAttendanceDialog({
       });
       setIsProcessing(false);
       setScanning(false);
-      consecutiveDetectionsRef.current = 0;
     }
   };
 
   const stopCamera = () => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
-    }
-
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-
-    clearCanvas();
-    setFaceDetected(false);
-    consecutiveDetectionsRef.current = 0;
+    setCapturedImage(null);
   };
 
   const handleClose = () => {
     stopCamera();
     setError(null);
     setSuccess(false);
-    setModelsLoaded(false);
     onOpenChange(false);
   };
 
@@ -344,13 +202,6 @@ export default function FaceAttendanceDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              <span className="ml-2">Loading face recognition models...</span>
-            </div>
-          )}
-
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
               <XCircle className="h-5 w-5 flex-shrink-0" />
@@ -365,7 +216,7 @@ export default function FaceAttendanceDialog({
             </div>
           )}
 
-          {!loading && modelsLoaded && !success && (
+          {!capturedImage && !success && (
             <>
               <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
                 <video
@@ -375,33 +226,18 @@ export default function FaceAttendanceDialog({
                   muted
                   className="w-full h-full object-cover"
                 />
-                <canvas
-                  ref={canvasRef}
-                  className="absolute top-0 left-0 w-full h-full"
-                  style={{ pointerEvents: "none" }}
-                />
-                {!faceDetected && (
+                <canvas ref={canvasRef} className="hidden" />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                     <div className="text-center text-white">
                       <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       <p>Position your face in the frame</p>
                     </div>
                   </div>
-                )}
               </div>
 
               <div className="flex items-center justify-center gap-2">
-                <div
-                  className={`h-3 w-3 rounded-full transition-colors ${
-                    faceDetected ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                  }`}
-                />
                 <span className="text-sm text-gray-600">
-                  {faceDetected 
-                    ? `✅ ${statusMessage}`
-                    : modelsLoaded 
-                    ? "👀 Looking for face..." 
-                    : "Loading..."}
+                  {statusMessage}
                 </span>
               </div>
 
@@ -410,35 +246,44 @@ export default function FaceAttendanceDialog({
                   variant="outline"
                   onClick={handleClose}
                   className="flex-1"
-                  disabled={scanning}
+                  disabled={isProcessing}
                 >
                   Cancel
                 </Button>
                 <Button
-                  onClick={scanAndMarkAttendance}
-                  disabled={!faceDetected || scanning}
+                  onClick={capturePhoto}
+                  disabled={isProcessing}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                 >
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Scanning...
+                      Processing...
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Scan & Mark Attendance
+                      <Camera className="h-4 w-4 mr-2" />
+                      Capture & Mark Attendance
                     </>
                   )}
                 </Button>
               </div>
-
-              {faceDetected && !scanning && (
-                <p className="text-xs text-center text-gray-500">
-                  Keep your face steady and click the button above to mark attendance
-                </p>
-              )}
             </>
+          )}
+
+          {capturedImage && !success && (
+            <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+              <img
+                src={capturedImage}
+                alt="Captured face"
+                className="w-full h-full object-cover"
+              />
+              {isProcessing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <Loader2 className="h-8 w-8 text-white animate-spin" />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </DialogContent>
