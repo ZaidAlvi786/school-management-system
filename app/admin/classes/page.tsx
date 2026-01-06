@@ -83,20 +83,13 @@ export default function ClassesPage() {
 
   const fetchData = async () => {
     try {
-      const [classesRes, campusesRes] = await Promise.all([
-        fetch("/api/admin/classes"),
-        fetch("/api/admin/campuses"),
+      const { getClasses, getCampuses } = await import("@/lib/fastapi-client");
+      const [classesData, campusesData] = await Promise.all([
+        getClasses(),
+        getCampuses(),
       ]);
-
-      if (classesRes.ok) {
-        const classesData = await classesRes.json();
-        setClasses(classesData);
-      }
-
-      if (campusesRes.ok) {
-        const campusesData = await campusesRes.json();
-        setCampuses(campusesData);
-      }
+      setClasses(Array.isArray(classesData) ? classesData : []);
+      setCampuses(Array.isArray(campusesData) ? campusesData : []);
     } catch (error) {
       toast({
         title: "Error",
@@ -111,35 +104,22 @@ export default function ClassesPage() {
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/admin/classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          sections: [],
-        }),
+      const { createClass } = await import("@/lib/fastapi-client");
+      await createClass({
+        ...formData,
+        sections: [],
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Class created successfully",
-        });
-        setShowClassDialog(false);
-        setFormData({ name: "", level: 9, campusId: "" });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to create class",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Class created successfully",
+      });
+      setShowClassDialog(false);
+      setFormData({ name: "", level: 9, campusId: "" });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to create class",
+        description: error.message || "Failed to create class",
         variant: "destructive",
       });
     }
@@ -150,36 +130,23 @@ export default function ClassesPage() {
     if (!selectedClass) return;
 
     try {
-      const res = await fetch("/api/admin/sections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...sectionData,
-          classId: selectedClass,
-        }),
+      const { createSection } = await import("@/lib/fastapi-client");
+      await createSection({
+        ...sectionData,
+        classId: selectedClass,
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Section created successfully",
-        });
-        setShowSectionDialog(false);
-        setSectionData({ name: "", capacity: 40 });
-        setSelectedClass(null);
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to create section",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Section created successfully",
+      });
+      setShowSectionDialog(false);
+      setSectionData({ name: "", capacity: 40 });
+      setSelectedClass(null);
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to create section",
+        description: error.message || "Failed to create section",
         variant: "destructive",
       });
     }
@@ -189,27 +156,17 @@ export default function ClassesPage() {
     if (!confirm("Are you sure you want to delete this section?")) return;
 
     try {
-      const res = await fetch(`/api/admin/sections?id=${sectionId}`, {
-        method: "DELETE",
+      const { deleteSection } = await import("@/lib/fastapi-client");
+      await deleteSection(sectionId);
+      toast({
+        title: "Success",
+        description: "Section deleted successfully",
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Section deleted successfully",
-        });
-        fetchData();
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete section",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete section",
+        description: error.message || "Failed to delete section",
         variant: "destructive",
       });
     }
