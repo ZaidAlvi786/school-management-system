@@ -53,11 +53,9 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch("/api/admin/analytics");
-      if (res.ok) {
-        const data = await res.json();
-        setAnalytics(data);
-      }
+      const { getAnalytics } = await import("@/lib/fastapi-client");
+      const data = await getAnalytics();
+      setAnalytics(data);
     } catch (error) {
       toast({
         title: "Error",
