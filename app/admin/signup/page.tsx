@@ -45,23 +45,13 @@ export default function AdminSignupPage() {
 
     setCheckingDomain(true);
     try {
-      const res = await fetch(`/api/auth/check-domain?domain=${encodeURIComponent(domain)}`);
-      const data = await res.json();
-      
-      if (res.ok) {
-        setDomainAvailable(data.available);
-        if (!data.available) {
-          toast({
-            title: "Domain Unavailable",
-            description: data.message || "This domain is already taken",
-            variant: "destructive",
-          });
-        }
-      } else {
-        setDomainAvailable(false);
+      const { checkDomain } = await import("@/lib/fastapi-client");
+      const data = await checkDomain(domain);
+      setDomainAvailable(!!data.available);
+      if (data.available === false) {
         toast({
-          title: "Error",
-          description: data.error || "Failed to check domain",
+          title: "Domain Unavailable",
+          description: data.message || "This domain is already taken",
           variant: "destructive",
         });
       }
@@ -184,25 +174,14 @@ export default function AdminSignupPage() {
         submitFormData.append("certificateFile", selectedFile);
       }
 
-      const res = await fetch("/api/auth/admin-signup", {
-        method: "POST",
-        body: submitFormData,
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
+      const { adminSignup } = await import("@/lib/fastapi-client");
+      const data = await adminSignup(submitFormData);
+      if (data) {
         toast({
           title: "Success",
           description: data.message || "Account created successfully!",
         });
         router.push("/login");
-      } else {
-        toast({
-          title: "Error",
-          description: data.error || "Failed to create account",
-          variant: "destructive",
-        });
       }
     } catch (error) {
       toast({
