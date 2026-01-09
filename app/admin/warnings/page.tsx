@@ -57,12 +57,10 @@ export default function WarningsPage() {
 
   const fetchWarnings = async () => {
     try {
-      const res = await fetch("/api/admin/warnings");
-      if (res.ok) {
-        const data = await res.json();
-        setAtRiskStudents(data.atRiskStudents || []);
-        setAiInsights(data.aiInsights || []);
-      }
+      const { getWarnings } = await import("@/lib/fastapi-client");
+      const data = await getWarnings();
+      setAtRiskStudents(data.atRiskStudents || []);
+      setAiInsights(data.aiInsights || []);
     } catch (error) {
       toast({
         title: "Error",

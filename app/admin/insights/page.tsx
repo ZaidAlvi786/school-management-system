@@ -57,11 +57,9 @@ export default function InsightsPage() {
 
   const fetchInsights = async () => {
     try {
-      const res = await fetch("/api/admin/insights");
-      if (res.ok) {
-        const data = await res.json();
-        setInsights(data);
-      }
+      const { getInsights } = await import("@/lib/fastapi-client");
+      const data = await getInsights();
+      setInsights(Array.isArray(data) ? data : []);
     } catch (error) {
       toast({
         title: "Error",
@@ -76,30 +74,17 @@ export default function InsightsPage() {
   const handleGenerateInsights = async () => {
     setGenerating(true);
     try {
-      const res = await fetch("/api/admin/insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "" }),
+      const { generateInsights } = await import("@/lib/fastapi-client");
+      await generateInsights({ type: "" });
+      toast({
+        title: "Success",
+        description: "AI insights generated successfully",
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "AI insights generated successfully",
-        });
-        fetchInsights();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to generate insights",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      fetchInsights();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to generate insights",
+        description: error.message || "Failed to generate insights",
         variant: "destructive",
       });
     } finally {

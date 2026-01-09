@@ -131,15 +131,11 @@ export default function SchoolsPage() {
 
       setPrincipalSearchLoading(true);
       try {
-        const res = await fetch(
-          `/api/admin/users/search?email=${encodeURIComponent(formData.principalEmail)}&role=principal`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setPrincipalSearchResults(data.users || []);
-          setShowPrincipalSuggestions(data.users && data.users.length > 0);
-        }
-      } catch (error) {
+        const { searchUsers } = await import("@/lib/fastapi-client");
+        const data = await searchUsers(formData.principalEmail, "principal");
+        setPrincipalSearchResults(data.users || []);
+        setShowPrincipalSuggestions(data.users && data.users.length > 0);
+      } catch (error: any) {
         console.error("Error searching principals:", error);
       } finally {
         setPrincipalSearchLoading(false);
@@ -162,15 +158,11 @@ export default function SchoolsPage() {
 
       setCampusPrincipalSearchLoading(true);
       try {
-        const res = await fetch(
-          `/api/admin/users/search?email=${encodeURIComponent(campusData.principalEmail)}&role=principal`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setCampusPrincipalSearchResults(data.users || []);
-          setShowCampusPrincipalSuggestions(data.users && data.users.length > 0);
-        }
-      } catch (error) {
+        const { searchUsers } = await import("@/lib/fastapi-client");
+        const data = await searchUsers(campusData.principalEmail, "principal");
+        setCampusPrincipalSearchResults(data.users || []);
+        setShowCampusPrincipalSuggestions(data.users && data.users.length > 0);
+      } catch (error: any) {
         console.error("Error searching principals:", error);
       } finally {
         setCampusPrincipalSearchLoading(false);
@@ -183,25 +175,22 @@ export default function SchoolsPage() {
 
   const fetchSchools = async () => {
     try {
-      const res = await fetch("/api/admin/schools");
-      if (res.ok) {
-        const data = await res.json();
-        // Map Supabase 'id' to '_id' to match the interface
-        const mappedData = data.map((school: any) => ({
-          ...school,
-          _id: school.id || school._id,
-          campuses: (school.campuses || []).map((campus: any) => ({
-            ...campus,
-            _id: campus.id || campus._id,
-          })),
-        }));
-        console.log("[FETCH SCHOOLS] Mapped data:", mappedData);
-        setSchools(mappedData);
-      }
-    } catch (error) {
+      const { getSchools } = await import("@/lib/fastapi-client");
+      const data = await getSchools();
+      // Map Supabase 'id' to '_id' to match the interface
+      const mappedData = (Array.isArray(data) ? data : []).map((school: any) => ({
+        ...school,
+        _id: school.id || school._id,
+        campuses: (school.campuses || []).map((campus: any) => ({
+          ...campus,
+          _id: campus.id || campus._id,
+        })),
+      }));
+      setSchools(mappedData);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch schools",
+        description: error.message || "Failed to fetch schools",
         variant: "destructive",
       });
     } finally {
@@ -212,43 +201,31 @@ export default function SchoolsPage() {
   const handleCreateSchool = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/admin/schools", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          campuses: [],
-        }),
+      const { createSchool } = await import("@/lib/fastapi-client");
+      await createSchool({
+        ...formData,
+        campuses: [],
       });
 
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "School created successfully",
-        });
-        setShowSchoolDialog(false);
-        setFormData({
-          name: "",
-          code: "",
-          address: "",
-          city: "",
-          province: "",
-          type: "government",
-          principalEmail: "",
-        });
-        fetchSchools();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to create school",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "School created successfully",
+      });
+      setShowSchoolDialog(false);
+      setFormData({
+        name: "",
+        code: "",
+        address: "",
+        city: "",
+        province: "",
+        type: "government",
+        principalEmail: "",
+      });
+      fetchSchools();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to create school",
+        description: error.message || "Failed to create school",
         variant: "destructive",
       });
     }
@@ -308,35 +285,37 @@ export default function SchoolsPage() {
             principalEmail: campusData.principalEmail,
           };
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: editingCampus ? "Campus updated successfully" : "Campus created successfully",
+      const { createCampus, updateCampus } = await import("@/lib/fastapi-client");
+      
+      if (editingCampus) {
+        await updateCampus({
+          id: editingCampus._id,
+          name: campusData.name,
+          address: campusData.address,
         });
-        setShowCampusDialog(false);
-        setEditingCampus(null);
-        setCampusData({ name: "", address: "", principalEmail: "" });
-        setSelectedCampusPrincipal(null);
-        setSelectedSchool(null);
-        fetchSchools();
       } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || (editingCampus ? "Failed to update campus" : "Failed to create campus"),
-          variant: "destructive",
+        await createCampus({
+          name: campusData.name,
+          address: campusData.address,
+          schoolId: finalSchoolId,
+          principalEmail: campusData.principalEmail,
         });
       }
-    } catch (error) {
+
+      toast({
+        title: "Success",
+        description: editingCampus ? "Campus updated successfully" : "Campus created successfully",
+      });
+      setShowCampusDialog(false);
+      setEditingCampus(null);
+      setCampusData({ name: "", address: "", principalEmail: "" });
+      setSelectedCampusPrincipal(null);
+      setSelectedSchool(null);
+      fetchSchools();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: editingCampus ? "Failed to update campus" : "Failed to create campus",
+        description: error.message || (editingCampus ? "Failed to update campus" : "Failed to create campus"),
         variant: "destructive",
       });
     }
@@ -363,27 +342,18 @@ export default function SchoolsPage() {
     if (!confirm("Are you sure you want to delete this campus?")) return;
 
     try {
-      const res = await fetch(`/api/admin/campuses?id=${campusId}`, {
-        method: "DELETE",
+      const { deleteCampus } = await import("@/lib/fastapi-client");
+      await deleteCampus(campusId);
+      
+      toast({
+        title: "Success",
+        description: "Campus deleted successfully",
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Campus deleted successfully",
-        });
-        fetchSchools();
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete campus",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      fetchSchools();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete campus",
+        description: error.message || "Failed to delete campus",
         variant: "destructive",
       });
     }

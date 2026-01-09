@@ -48,23 +48,19 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const [campusesRes, principalsRes, classesRes, teachersRes] = await Promise.all([
-        fetch("/api/admin/campuses"),
-        fetch("/api/admin/principals"),
-        fetch("/api/admin/classes"),
-        fetch("/api/admin/teachers"),
+      const { getCampuses, getPrincipals, getClasses, getTeachers } = await import("@/lib/fastapi-client");
+      const [campuses, principals, classes, teachers] = await Promise.all([
+        getCampuses().catch(() => []),
+        getPrincipals().catch(() => []),
+        getClasses().catch(() => []),
+        getTeachers().catch(() => []),
       ]);
 
-      const campuses = campusesRes.ok ? await campusesRes.json() : [];
-      const principals = principalsRes.ok ? await principalsRes.json() : [];
-      const classes = classesRes.ok ? await classesRes.json() : [];
-      const teachers = teachersRes.ok ? await teachersRes.json() : [];
-
       setStats({
-        campuses: campuses.length || 0,
-        principals: principals.length || 0,
-        classes: classes.length || 0,
-        teachers: teachers.length || 0,
+        campuses: (campuses || []).length || 0,
+        principals: (principals || []).length || 0,
+        classes: (classes || []).length || 0,
+        teachers: (teachers || []).length || 0,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);

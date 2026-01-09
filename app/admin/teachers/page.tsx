@@ -80,20 +80,13 @@ export default function TeachersPage() {
 
   const fetchData = async () => {
     try {
-      const [teachersRes, classesRes] = await Promise.all([
-        fetch("/api/admin/teachers"),
-        fetch("/api/admin/classes"),
+      const { getTeachers, getClasses } = await import("@/lib/fastapi-client");
+      const [teachersData, classesData] = await Promise.all([
+        getTeachers(),
+        getClasses(),
       ]);
-
-      if (teachersRes.ok) {
-        const teachersData = await teachersRes.json();
-        setTeachers(teachersData);
-      }
-
-      if (classesRes.ok) {
-        const classesData = await classesRes.json();
-        setClasses(classesData);
-      }
+      setTeachers(Array.isArray(teachersData) ? teachersData : []);
+      setClasses(Array.isArray(classesData) ? classesData : []);
     } catch (error) {
       toast({
         title: "Error",
@@ -108,37 +101,24 @@ export default function TeachersPage() {
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/admin/teachers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      const { assignSubject } = await import("@/lib/fastapi-client");
+      await assignSubject(formData);
+      toast({
+        title: "Success",
+        description: "Teacher assigned successfully",
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Teacher assigned successfully",
-        });
-        setShowDialog(false);
-        setFormData({
-          teacherId: "",
-          classId: "",
-          subjectName: "",
-          subjectCode: "",
-        });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to assign teacher",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      setShowDialog(false);
+      setFormData({
+        teacherId: "",
+        classId: "",
+        subjectName: "",
+        subjectCode: "",
+      });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to assign teacher",
+        description: error.message || "Failed to assign teacher",
         variant: "destructive",
       });
     }
