@@ -60,13 +60,16 @@ export default function TeacherMaterialsPage() {
   const fetchMaterials = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/teacher/materials");
-      if (response.ok) {
-        const data = await response.json();
-        setMaterials(data);
-      }
-    } catch (error) {
+      const { getTeacherMaterials } = await import("@/lib/fastapi-client");
+      const data = await getTeacherMaterials();
+      setMaterials(data);
+    } catch (error: any) {
       console.error("Failed to fetch materials:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch materials",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -74,23 +77,18 @@ export default function TeacherMaterialsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`/api/teacher/materials/${id}`, {
-        method: "DELETE",
+      const { deleteMaterial } = await import("@/lib/fastapi-client");
+      await deleteMaterial(id);
+      
+      toast({
+        title: "Deleted",
+        description: "Material deleted successfully",
       });
-
-      if (response.ok) {
-        toast({
-          title: "Deleted",
-          description: "Material deleted successfully",
-        });
-        fetchMaterials();
-      } else {
-        throw new Error("Failed to delete");
-      }
-    } catch (error) {
+      fetchMaterials();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete material",
+        description: error.message || "Failed to delete material",
         variant: "destructive",
       });
     }
