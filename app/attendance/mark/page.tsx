@@ -27,11 +27,9 @@ function MarkAttendanceContent() {
 
   const fetchStudentInfo = async () => {
     try {
-      const res = await fetch(`/api/student/info?id=${studentId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setStudentName(data.name || "Student");
-      }
+      const { getStudentInfoById } = await import("@/lib/fastapi-client");
+      const data = await getStudentInfoById(studentId as string);
+      setStudentName(data.name || "Student");
     } catch (error) {
       console.error("Failed to fetch student info:", error);
     }
@@ -48,32 +46,18 @@ function MarkAttendanceContent() {
 
     try {
       const today = new Date().toISOString().split("T")[0];
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          attendanceRecords: [
-            {
-              student: studentId,
-              date: today,
-              status: "present",
-              remarks: "Marked via QR code",
-            },
-          ],
-          isQRCodeMarking: true,
-        }),
+      const { markAttendanceManual } = await import("@/lib/fastapi-client");
+      await markAttendanceManual({
+        studentId: studentId as string,
+        date: today,
+        status: "present",
+        remarks: "Marked via QR code",
       });
-
-      if (res.ok) {
-        setVerified(true);
-        toast({
-          title: "Success",
-          description: "Attendance marked successfully!",
-        });
-      } else {
-        const errorData = await res.json();
-        setError(errorData.error || "Failed to mark attendance");
-      }
+      setVerified(true);
+      toast({
+        title: "Success",
+        description: "Attendance marked successfully!",
+      });
     } catch (error: any) {
       setError(error.message || "Failed to mark attendance");
     } finally {
