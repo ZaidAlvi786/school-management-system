@@ -83,38 +83,33 @@ export default function PrincipalTeachersPage() {
 
   const fetchData = async () => {
     try {
-      const [teachersRes, classesRes] = await Promise.all([
-        fetch("/api/admin/teachers"),
-        fetch("/api/admin/classes"),
+      const { getPrincipalTeachers, getClasses } = await import("@/lib/fastapi-client");
+      const [teachersData, classesData] = await Promise.all([
+        getPrincipalTeachers(),
+        getClasses(),
       ]);
 
-      if (teachersRes.ok) {
-        const teachersData = await teachersRes.json();
-        // Map Supabase 'id' to '_id' to match the interface
-        const mappedTeachers = teachersData.map((teacher: any) => ({
-          ...teacher,
-          _id: teacher.id || teacher._id,
-          assignedSubjects: (teacher.assignedSubjects || []).map((subject: any) => ({
-            ...subject,
-            _id: subject.id || subject._id,
-          })),
-        }));
-        setTeachers(mappedTeachers);
-      }
+      // Map Supabase 'id' to '_id' to match the interface
+      const mappedTeachers = (Array.isArray(teachersData) ? teachersData : []).map((teacher: any) => ({
+        ...teacher,
+        _id: teacher.id || teacher._id,
+        assignedSubjects: (teacher.assignedSubjects || []).map((subject: any) => ({
+          ...subject,
+          _id: subject.id || subject._id,
+        })),
+      }));
+      setTeachers(mappedTeachers);
 
-      if (classesRes.ok) {
-        const classesData = await classesRes.json();
-        // Map Supabase 'id' to '_id' to match the interface
-        const mappedClasses = classesData.map((cls: any) => ({
-          ...cls,
-          _id: cls.id || cls._id,
-        }));
-        setClasses(mappedClasses);
-      }
-    } catch (error) {
+      // Map classes
+      const mappedClasses = (Array.isArray(classesData) ? classesData : []).map((cls: any) => ({
+        ...cls,
+        _id: cls.id || cls._id,
+      }));
+      setClasses(mappedClasses);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch data",
+        description: error.message || "Failed to fetch data",
         variant: "destructive",
       });
     } finally {
@@ -125,37 +120,25 @@ export default function PrincipalTeachersPage() {
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/admin/teachers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const { assignTeacher } = await import("@/lib/fastapi-client");
+      await assignTeacher(formData);
 
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Teacher assigned successfully",
-        });
-        setShowDialog(false);
-        setFormData({
-          teacherId: "",
-          classId: "",
-          subjectName: "",
-          subjectCode: "",
-        });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to assign teacher",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Teacher assigned successfully",
+      });
+      setShowDialog(false);
+      setFormData({
+        teacherId: "",
+        classId: "",
+        subjectName: "",
+        subjectCode: "",
+      });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to assign teacher",
+        description: error.message || "Failed to assign teacher",
         variant: "destructive",
       });
     }
@@ -173,38 +156,26 @@ export default function PrincipalTeachersPage() {
     }
 
     try {
-      const res = await fetch("/api/principal/teachers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(teacherFormData),
-      });
+      const { createTeacher } = await import("@/lib/fastapi-client");
+      await createTeacher(teacherFormData);
 
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Teacher added successfully. An invite will be sent if they don't have an account.",
-        });
-        setShowAddTeacherDialog(false);
-        setTeacherFormData({
-          email: "",
-          name: "",
-          phone: "",
-          qualification: "",
-          experience: 0,
-        });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to add teacher",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Teacher added successfully. An invite will be sent if they don't have an account.",
+      });
+      setShowAddTeacherDialog(false);
+      setTeacherFormData({
+        email: "",
+        name: "",
+        phone: "",
+        qualification: "",
+        experience: 0,
+      });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to add teacher",
+        description: error.message || "Failed to add teacher",
         variant: "destructive",
       });
     }
