@@ -87,54 +87,41 @@ export default function PrincipalClassesPage() {
 
   const fetchData = async () => {
     try {
-      const [classesRes, campusesRes, teachersRes] = await Promise.all([
-        fetch("/api/admin/classes"),
-        fetch("/api/admin/campuses"),
-        fetch("/api/admin/teachers"),
+      const { getClasses, getCampuses, getTeachers } = await import("@/lib/fastapi-client");
+      const [classesData, campusesData, teachersData] = await Promise.all([
+        getClasses(),
+        getCampuses(),
+        getTeachers(),
       ]);
-
-      if (classesRes.ok) {
-        const classesData = await classesRes.json();
-        // Map Supabase 'id' to '_id' to match the interface
-        const mappedClasses = classesData.map((cls: any) => ({
-          ...cls,
-          _id: cls.id || cls._id,
-          sections: (cls.sections || []).map((section: any) => ({
-            ...section,
-            _id: section.id || section._id,
-            currentStrength: section.current_strength || section.currentStrength || 0,
-          })),
-        }));
-        setClasses(mappedClasses);
-      }
-
-      if (campusesRes.ok) {
-        const campusesData = await campusesRes.json();
-        // Map Supabase 'id' to '_id' to match the interface
-        const mappedCampuses = campusesData.map((campus: any) => ({
-          ...campus,
-          _id: campus.id || campus._id,
-        }));
-        setCampuses(mappedCampuses);
-        // Set principal's campus ID (should be only one)
-        if (mappedCampuses.length > 0) {
-          setPrincipalCampusId(mappedCampuses[0]._id);
-          // Auto-set campus in form if not set
-          if (!formData.campusId) {
-            setFormData({ ...formData, campusId: mappedCampuses[0]._id });
-          }
+      // Map classes
+      const mappedClasses = (classesData || []).map((cls: any) => ({
+        ...cls,
+        _id: cls.id || cls._id,
+        sections: (cls.sections || []).map((section: any) => ({
+          ...section,
+          _id: section.id || section._id,
+          currentStrength: section.current_strength || section.currentStrength || 0,
+        })),
+      }));
+      setClasses(mappedClasses);
+      // Map campuses
+      const mappedCampuses = (campusesData || []).map((campus: any) => ({
+        ...campus,
+        _id: campus.id || campus._id,
+      }));
+      setCampuses(mappedCampuses);
+      if (mappedCampuses.length > 0) {
+        setPrincipalCampusId(mappedCampuses[0]._id);
+        if (!formData.campusId) {
+          setFormData({ ...formData, campusId: mappedCampuses[0]._id });
         }
       }
-
-      if (teachersRes.ok) {
-        const teachersData = await teachersRes.json();
-        // Map Supabase 'id' to '_id' to match the interface
-        const mappedTeachers = teachersData.map((teacher: any) => ({
-          ...teacher,
-          _id: teacher.id || teacher._id,
-        }));
-        setTeachers(mappedTeachers);
-      }
+      // Map teachers
+      const mappedTeachers = (teachersData || []).map((teacher: any) => ({
+        ...teacher,
+        _id: teacher.id || teacher._id,
+      }));
+      setTeachers(mappedTeachers);
     } catch (error) {
       toast({
         title: "Error",
@@ -149,35 +136,22 @@ export default function PrincipalClassesPage() {
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/admin/classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          sections: [],
-        }),
+      const { createClass } = await import("@/lib/fastapi-client");
+      await createClass({
+        ...formData,
+        sections: [],
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Class created successfully",
-        });
-        setShowClassDialog(false);
-        setFormData({ name: "", level: 9, campusId: principalCampusId || "" });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to create class",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Class created successfully",
+      });
+      setShowClassDialog(false);
+      setFormData({ name: "", level: 9, campusId: principalCampusId || "" });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to create class",
+        description: error.message || "Failed to create class",
         variant: "destructive",
       });
     }
@@ -189,36 +163,23 @@ export default function PrincipalClassesPage() {
 
     setSubmittingSection(true);
     try {
-      const res = await fetch("/api/admin/sections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...sectionData,
-          classId: selectedClass,
-        }),
+      const { createSection } = await import("@/lib/fastapi-client");
+      await createSection({
+        ...sectionData,
+        classId: selectedClass,
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Section created successfully",
-        });
-        setShowSectionDialog(false);
-        setSectionData({ name: "", capacity: 40 });
-        setSelectedClass(null);
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to create section",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Section created successfully",
+      });
+      setShowSectionDialog(false);
+      setSectionData({ name: "", capacity: 40 });
+      setSelectedClass(null);
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to create section",
+        description: error.message || "Failed to create section",
         variant: "destructive",
       });
     } finally {
@@ -230,27 +191,17 @@ export default function PrincipalClassesPage() {
     if (!confirm("Are you sure you want to delete this section?")) return;
 
     try {
-      const res = await fetch(`/api/admin/sections?id=${sectionId}`, {
-        method: "DELETE",
+      const { deleteSection } = await import("@/lib/fastapi-client");
+      await deleteSection(sectionId);
+      toast({
+        title: "Success",
+        description: "Section deleted successfully",
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Section deleted successfully",
-        });
-        fetchData();
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete section",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete section",
+        description: error.message || "Failed to delete section",
         variant: "destructive",
       });
     }
@@ -261,38 +212,25 @@ export default function PrincipalClassesPage() {
     if (!selectedClassForIncharge) return;
 
     try {
-      const res = await fetch("/api/admin/classes", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedClassForIncharge._id,
-          name: selectedClassForIncharge.name,
-          level: selectedClassForIncharge.level,
-          classInchargeId: inchargeTeacherId === "__none__" || inchargeTeacherId === "" ? null : inchargeTeacherId,
-        }),
+      const { updateClass } = await import("@/lib/fastapi-client");
+      await updateClass({
+        id: selectedClassForIncharge._id,
+        name: selectedClassForIncharge.name,
+        level: selectedClassForIncharge.level,
+        classInchargeId: inchargeTeacherId === "__none__" || inchargeTeacherId === "" ? null : inchargeTeacherId,
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Class incharge assigned successfully",
-        });
-        setShowInchargeDialog(false);
-        setSelectedClassForIncharge(null);
-        setInchargeTeacherId("__none__");
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to assign class incharge",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Class incharge assigned successfully",
+      });
+      setShowInchargeDialog(false);
+      setSelectedClassForIncharge(null);
+      setInchargeTeacherId("__none__");
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to assign class incharge",
+        description: error.message || "Failed to assign class incharge",
         variant: "destructive",
       });
     }
