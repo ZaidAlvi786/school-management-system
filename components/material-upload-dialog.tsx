@@ -51,30 +51,28 @@ export default function MaterialUploadDialog({
 
     const fetchClassesSubjects = async () => {
         try {
-            const response = await fetch("/api/teacher/classes-subjects");
-            if (response.ok) {
-                const data = await response.json();
-                // Transform the API response to the expected flat structure
-                const flatArray: ClassSubject[] = [];
-                
-                if (data.classes && Array.isArray(data.classes)) {
-                    data.classes.forEach((cls: any) => {
-                        if (cls.subjects && Array.isArray(cls.subjects)) {
-                            cls.subjects.forEach((subject: any) => {
-                                flatArray.push({
-                                    class_id: cls._id || cls.id || "",
-                                    class_name: cls.name || "",
-                                    subject_id: subject._id || subject.id || "",
-                                    subject_name: subject.name || "",
-                                    subject_code: subject.code || "",
-                                });
+            const { getClassesSubjects } = await import("@/lib/fastapi-client");
+            const data = await getClassesSubjects();
+            // Transform the API response to the expected flat structure
+            const flatArray: ClassSubject[] = [];
+            
+            if (data.classes && Array.isArray(data.classes)) {
+                data.classes.forEach((cls: any) => {
+                    if (cls.subjects && Array.isArray(cls.subjects)) {
+                        cls.subjects.forEach((subject: any) => {
+                            flatArray.push({
+                                class_id: cls._id || cls.id || "",
+                                class_name: cls.name || "",
+                                subject_id: subject._id || subject.id || "",
+                                subject_name: subject.name || "",
+                                subject_code: subject.code || "",
                             });
-                        }
-                    });
-                }
-                
-                setClassesSubjects(flatArray);
+                        });
+                    }
+                });
             }
+            
+            setClassesSubjects(flatArray);
         } catch (error) {
             console.error("Failed to fetch classes:", error);
             setClassesSubjects([]); // Ensure it's always an array
@@ -110,20 +108,15 @@ export default function MaterialUploadDialog({
             // Parse selected value "classId|subjectId"
             const [classId, subjectId] = selectedClassSubject.split("|");
 
-            const response = await fetch("/api/teacher/materials", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    title,
-                    description,
-                    class_id: classId,
-                    subject_id: subjectId,
-                    file_url: mockFileUrl, // Using mock URL for now as per instructions to "Simulate" if needed or use what's available
-                    file_type: file.type || "application/octet-stream",
-                }),
-            });
-
-            if (!response.ok) throw new Error("Failed to create material");
+            const { createMaterial } = await import("@/lib/fastapi-client");
+            const payload = new FormData();
+            payload.append("title", title);
+            payload.append("description", description);
+            payload.append("class_id", classId);
+            payload.append("subject_id", subjectId);
+            // For now, attach the file directly; backend should save and return URL
+            payload.append("file", file);
+            await createMaterial(payload);
 
             toast({
                 title: "Success",
