@@ -71,12 +71,10 @@ export default function StudentSyllabusPage() {
 
   const fetchSyllabus = async () => {
     try {
-      const response = await fetch("/api/student/syllabus");
-      if (response.ok) {
-        const data = await response.json();
-        setSyllabus(data || []);
-      }
-    } catch (error) {
+      const { getStudentSyllabus } = await import("@/lib/fastapi-client");
+      const data = await getStudentSyllabus();
+      setSyllabus(data || []);
+    } catch (error: any) {
       console.error("Failed to fetch syllabus:", error);
     } finally {
       setLoading(false);
