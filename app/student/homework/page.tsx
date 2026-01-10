@@ -58,13 +58,16 @@ export default function StudentHomeworkPage() {
 
   const fetchHomework = async () => {
     try {
-      const response = await fetch("/api/student/homework");
-      if (response.ok) {
-        const data = await response.json();
-        setHomework(data);
-      }
-    } catch (error) {
+      const { getStudentHomework } = await import("@/lib/fastapi-client");
+      const data = await getStudentHomework();
+      setHomework(data);
+    } catch (error: any) {
       console.error("Failed to fetch homework:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch homework",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -93,32 +96,19 @@ export default function StudentHomeworkPage() {
   const handleMarkAsDone = async (homeworkId: string) => {
     try {
       setMarkingDone(homeworkId);
-      const response = await fetch("/api/student/homework/mark-done", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ homeworkId }),
+      const { markHomeworkDone } = await import("@/lib/fastapi-client");
+      await markHomeworkDone(homeworkId);
+      
+      toast({
+        title: "Success",
+        description: "Homework marked as done! Waiting for teacher approval.",
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast({
-          title: "Success",
-          description: data.message || "Homework marked as done! Waiting for teacher approval.",
-        });
-        // Refresh homework list
-        fetchHomework();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to mark homework as done",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      // Refresh homework list
+      fetchHomework();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to mark homework as done",
+        description: error.message || "Failed to mark homework as done",
         variant: "destructive",
       });
     } finally {
