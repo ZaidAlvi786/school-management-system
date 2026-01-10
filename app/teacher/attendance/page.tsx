@@ -75,29 +75,20 @@ export default function TeacherAttendancePage() {
 
   const fetchStudents = async () => {
     try {
-      const res = await fetch("/api/teacher/students");
-      if (res.ok) {
-        const data = await res.json();
-        setStudents(data.students || []);
-        setIsClassIncharge(true);
+      const { getTeacherStudents } = await import("@/lib/fastapi-client");
+      const data = await getTeacherStudents();
+      setStudents(data.students || data || []);
+      setIsClassIncharge(true);
+    } catch (error: any) {
+      if (error.message?.includes("not assigned as a class incharge")) {
+        setIsClassIncharge(false);
       } else {
-        const error = await res.json();
-        if (error.error?.includes("not assigned as a class incharge")) {
-          setIsClassIncharge(false);
-        } else {
-          toast({
-            title: "Error",
-            description: error.error || "Failed to fetch students",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch students",
+          variant: "destructive",
+        });
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch students",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -105,29 +96,27 @@ export default function TeacherAttendancePage() {
 
   const fetchAttendanceForDate = async () => {
     try {
-      const res = await fetch(`/api/attendance?date=${selectedDate}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAttendanceRecords(data);
-        
-        // Initialize attendance status from existing records
-        const statusMap: Record<string, "present" | "absent" | "late" | "excused"> = {};
-        const remarksMap: Record<string, string> = {};
-        
-        data.forEach((record: AttendanceRecord) => {
-          statusMap[record.student._id] = record.status;
-          if (record.remarks) {
-            remarksMap[record.student._id] = record.remarks;
-          }
-        });
-        
-        setAttendanceStatus(statusMap);
-        setRemarks(remarksMap);
-      }
-    } catch (error) {
+      const { getAttendance } = await import("@/lib/fastapi-client");
+      const data = await getAttendance();
+      setAttendanceRecords(data);
+      
+      // Initialize attendance status from existing records
+      const statusMap: Record<string, "present" | "absent" | "late" | "excused"> = {};
+      const remarksMap: Record<string, string> = {};
+      
+      data.forEach((record: AttendanceRecord) => {
+        statusMap[record.student._id] = record.status;
+        if (record.remarks) {
+          remarksMap[record.student._id] = record.remarks;
+        }
+      });
+      
+      setAttendanceStatus(statusMap);
+      setRemarks(remarksMap);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch attendance",
+        description: error.message || "Failed to fetch attendance",
         variant: "destructive",
       });
     }
@@ -149,37 +138,29 @@ export default function TeacherAttendancePage() {
 
     setSubmitting(true);
     try {
-      const records = students.map((student) => ({
-        student: student._id,
-        date: selectedDate,
-        status: attendanceStatus[student._id] || "absent",
-        remarks: remarks[student._id] || undefined,
-      }));
+      const { markAttendanceManual } = await import("@/lib/fastapi-client");
+      
+      // Mark attendance for each student
+      await Promise.all(
+        students.map((student) =>
+          markAttendanceManual({
+            studentId: student._id,
+            date: selectedDate,
+            status: attendanceStatus[student._id] || "absent",
+            remarks: remarks[student._id] || undefined,
+          })
+        )
+      );
 
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendanceRecords: records }),
+      toast({
+        title: "Success",
+        description: "Attendance marked successfully",
       });
-
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Attendance marked successfully",
-        });
-        fetchAttendanceForDate();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to mark attendance",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      fetchAttendanceForDate();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to mark attendance",
+        description: error.message || "Failed to mark attendance",
         variant: "destructive",
       });
     } finally {
