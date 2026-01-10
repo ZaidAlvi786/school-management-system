@@ -50,29 +50,53 @@ export default function TeacherQRCodesPage() {
 
   const fetchQRCodes = async () => {
     try {
-      const res = await fetch("/api/student/qr-code");
-      if (res.ok) {
-        const data = await res.json();
-        setStudents(data.students || []);
-        setIsClassIncharge(true);
+      // Note: QR code generation should be done in frontend
+      // Get students first
+      const { getTeacherStudents } = await import("@/lib/fastapi-client");
+      const data = await getTeacherStudents();
+      const studentsData = data.students || data || [];
+      
+      // Generate QR codes in frontend
+      const QRCode = (await import("qrcode")).default;
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      
+      const studentsWithQR = await Promise.all(
+        studentsData.map(async (student: any) => {
+          const qrData = `${baseUrl}/attendance/mark?studentId=${student.id || student._id}`;
+          let qrCodeDataUrl = "";
+          
+          try {
+            qrCodeDataUrl = await QRCode.toDataURL(qrData, {
+              width: 300,
+              margin: 2,
+            });
+          } catch (err) {
+            console.error("Error generating QR code:", err);
+          }
+          
+          return {
+            _id: student.id || student._id,
+            name: student.user?.name || student.name,
+            rollNumber: student.roll_number || student.rollNumber,
+            section: student.section?.name || "N/A",
+            qrCodeDataUrl,
+            qrData,
+          };
+        })
+      );
+      
+      setStudents(studentsWithQR);
+      setIsClassIncharge(true);
+    } catch (error: any) {
+      if (error.message?.includes("not assigned as a class incharge")) {
+        setIsClassIncharge(false);
       } else {
-        const error = await res.json();
-        if (error.error?.includes("not assigned as a class incharge")) {
-          setIsClassIncharge(false);
-        } else {
-          toast({
-            title: "Error",
-            description: error.error || "Failed to fetch QR codes",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch QR codes",
+          variant: "destructive",
+        });
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch QR codes",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -80,11 +104,14 @@ export default function TeacherQRCodesPage() {
 
   const fetchNetworkInfo = async () => {
     try {
-      const res = await fetch("/api/network-info");
-      if (res.ok) {
-        const data = await res.json();
-        setNetworkInfo(data);
-      }
+      // Network info can be generated client-side or removed
+      // For now, skip this or implement client-side
+      setNetworkInfo({
+        networkIP: null,
+        configuredIP: process.env.NEXT_PUBLIC_APP_URL?.replace("http://", "").replace("https://", "") || null,
+        recommendedIP: null,
+        url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      });
     } catch (error) {
       console.error("Failed to fetch network info:", error);
     }

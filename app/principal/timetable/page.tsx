@@ -61,23 +61,21 @@ export default function TimetablePage() {
 
   const fetchTimetable = async () => {
     try {
-      const response = await fetch("/api/principal/timetable");
-      if (response.ok) {
-        const data = await response.json();
-        if (data.junior) {
-          setTimetable({
-            ...data.junior,
-            start_time: data.junior.start_time?.substring(0, 5) || "08:00",
-            end_time: data.junior.end_time?.substring(0, 5) || "14:00",
-          });
-        }
-        if (data.senior) {
-          setSeniorTimetable({
-            ...data.senior,
-            start_time: data.senior.start_time?.substring(0, 5) || "08:00",
-            end_time: data.senior.end_time?.substring(0, 5) || "15:00",
-          });
-        }
+      const { getPrincipalTimetable } = await import("@/lib/fastapi-client");
+      const data = await getPrincipalTimetable();
+      if (data.junior) {
+        setTimetable({
+          ...data.junior,
+          start_time: data.junior.start_time?.substring(0, 5) || "08:00",
+          end_time: data.junior.end_time?.substring(0, 5) || "14:00",
+        });
+      }
+      if (data.senior) {
+        setSeniorTimetable({
+          ...data.senior,
+          start_time: data.senior.start_time?.substring(0, 5) || "08:00",
+          end_time: data.senior.end_time?.substring(0, 5) || "15:00",
+        });
       }
     } catch (error) {
       console.error("Failed to fetch timetable:", error);
@@ -89,20 +87,11 @@ export default function TimetablePage() {
   const saveTimetable = async () => {
     try {
       setSaving(true);
-      const response = await fetch("/api/principal/timetable", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          junior: timetable,
-          senior: seniorTimetable,
-        }),
+      const { createPrincipalTimetable } = await import("@/lib/fastapi-client");
+      await createPrincipalTimetable({
+        junior: timetable,
+        senior: seniorTimetable,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to save timetable");
-      }
 
       toast({
         title: "Success",

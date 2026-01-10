@@ -76,38 +76,13 @@ export default function LoginPage() {
         });
         setLoading(false);
       } else {
-        // Fetch session to get user role for redirect
-            const sessionResponse = await fetch('/api/auth/session');
-            const sessionData = await sessionResponse.json();
-            
-            if (sessionData?.user?.role) {
-              hasRedirected.current = true;
-              const role = sessionData.user.role;
-              
-              toast({
-                title: "Success",
-                description: "Logged in successfully",
-              });
-              
-              // Redirect based on role using window.location for reliable redirect
-              if (role === "admin") {
-                window.location.href = "/admin";
-              } else if (role === "principal") {
-                window.location.href = "/principal";
-              } else if (role === "teacher") {
-                window.location.href = "/teacher";
-              } else if (role === "student") {
-                window.location.href = "/student";
-              } else if (role === "parent") {
-                window.location.href = "/parent";
-              } else {
-            window.location.href = "/";
-              }
-            } else {
-              // Fallback: refresh and let useEffect handle redirect
-          setLoading(false);
-              router.refresh();
-            }
+        toast({
+          title: "Success",
+          description: "Logged in successfully",
+        });
+        // Let useSession() update and the useEffect below handle role-based redirect
+        setLoading(false);
+        router.refresh();
       }
     } catch (error) {
       toast({
@@ -128,13 +103,9 @@ export default function LoginPage() {
 
     setCheckingDomain(true);
     try {
-      const res = await fetch(`/api/auth/check-domain?domain=${encodeURIComponent(domain)}`);
-      const data = await res.json();
-      if (res.ok) {
-        setDomainAvailable(data.available);
-      } else {
-        setDomainAvailable(false);
-      }
+      const { checkDomain } = await import("@/lib/fastapi-client");
+      const data = await checkDomain(domain);
+      setDomainAvailable(!!data.available);
     } catch (error) {
       setDomainAvailable(false);
     } finally {
@@ -263,54 +234,33 @@ export default function LoginPage() {
           submitFormData.append("certificateFile", selectedFile);
         }
 
-        const res = await fetch("/api/auth/admin-signup", {
-          method: "POST",
-          body: submitFormData,
-        });
-
-        const data = await res.json();
-        if (res.ok) {
+        const { adminSignup } = await import("@/lib/fastapi-client");
+        const data = await adminSignup(submitFormData);
+        if (data) {
           toast({
             title: "Success",
             description: data.message || "Account created successfully!",
           });
           setIsSignUp(false);
           setEmail(`${signupData.userName}@${signupData.domain}`);
-        } else {
-          toast({
-            title: "Error",
-            description: data.error || "Failed to create account",
-            variant: "destructive",
-          });
         }
       } else {
         // For principal, teacher, student, parent - use general signup
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: signupData.name,
-            email: signupData.email,
-            password: signupData.password,
-            phone: signupData.phone,
-            role: selectedRole,
-          }),
+        const { userSignup } = await import("@/lib/fastapi-client");
+        const data = await userSignup({
+          name: signupData.name,
+          email: signupData.email,
+          password: signupData.password,
+          phone: signupData.phone,
+          role: selectedRole as any,
         });
-
-        const data = await res.json();
-        if (res.ok) {
+        if (data) {
           toast({
             title: "Success",
             description: data.message || "Account created successfully!",
           });
           setIsSignUp(false);
           setEmail(signupData.email);
-        } else {
-          toast({
-            title: "Error",
-            description: data.error || "Failed to create account",
-            variant: "destructive",
-          });
         }
       }
     } catch (error) {

@@ -107,15 +107,13 @@ export default function TeacherHomeworkPage() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/homework");
-      if (res.ok) {
-        const data = await res.json();
-        setHomework(data);
-      }
-    } catch (error) {
+      const { getHomework } = await import("@/lib/fastapi-client");
+      const data = await getHomework();
+      setHomework(data);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch homework",
+        description: error.message || "Failed to fetch homework",
         variant: "destructive",
       });
     } finally {
@@ -125,15 +123,13 @@ export default function TeacherHomeworkPage() {
 
   const fetchClassesAndSubjects = async () => {
     try {
-      const res = await fetch("/api/teacher/classes-subjects");
-      if (res.ok) {
-        const data = await res.json();
-        setClasses(data.classes || []);
-      }
-    } catch (error) {
+      const { getClassesSubjects } = await import("@/lib/fastapi-client");
+      const data = await getClassesSubjects();
+      setClasses(data.classes || []);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch classes and subjects",
+        description: error.message || "Failed to fetch classes and subjects",
         variant: "destructive",
       });
     }
@@ -164,41 +160,27 @@ export default function TeacherHomeworkPage() {
 
     setGenerating(true);
     try {
-      const res = await fetch("/api/homework/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: formData.topic,
-          details: formData.details,
-          subjectName: selectedSubject?.name || "",
-          className: selectedClass?.name || "",
-          classLevel: selectedClass?.level || 9,
-        }),
+      const { generateHomework } = await import("@/lib/fastapi-client");
+      const data = await generateHomework({
+        subject: selectedSubject?.name || "",
+        topic: formData.topic,
+        difficulty: "medium",
+        count: 5,
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setFormData({
-          ...formData,
-          title: data.title || `Homework: ${formData.topic}`,
-          description: data.description || "",
-        });
-        toast({
-          title: "Success",
-          description: "Homework generated successfully using AI",
-        });
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to generate homework",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      
+      setFormData({
+        ...formData,
+        title: `Homework: ${formData.topic}`,
+        description: formData.details || "",
+      });
+      toast({
+        title: "Success",
+        description: "Homework generated successfully using AI",
+      });
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to generate homework",
+        description: error.message || "Failed to generate homework",
         variant: "destructive",
       });
     } finally {
@@ -220,49 +202,37 @@ export default function TeacherHomeworkPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/homework", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
-          subject: formData.subjectId,
-          class: formData.classId,
-          section: formData.sectionId || undefined,
-          dueDate: formData.dueDate,
-          aiGenerated: true,
-        }),
+      const { createHomework } = await import("@/lib/fastapi-client");
+      await createHomework({
+        title: formData.title,
+        description: formData.description,
+        subject: formData.subjectId,
+        class: formData.classId,
+        section: formData.sectionId || undefined,
+        dueDate: formData.dueDate,
+        aiGenerated: true,
       });
 
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Homework assigned successfully",
-        });
-        setShowDialog(false);
-        setFormData({
-          topic: "",
-          details: "",
-          classId: "",
-          subjectId: "",
-          sectionId: "",
-          dueDate: new Date().toISOString().split("T")[0],
-          title: "",
-          description: "",
-        });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to assign homework",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Homework assigned successfully",
+      });
+      setShowDialog(false);
+      setFormData({
+        topic: "",
+        details: "",
+        classId: "",
+        subjectId: "",
+        sectionId: "",
+        dueDate: new Date().toISOString().split("T")[0],
+        title: "",
+        description: "",
+      });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to assign homework",
+        description: error.message || "Failed to assign homework",
         variant: "destructive",
       });
     } finally {
@@ -273,21 +243,13 @@ export default function TeacherHomeworkPage() {
   const fetchCompletions = async (homeworkId: string) => {
     try {
       setLoadingCompletions(true);
-      const response = await fetch(`/api/teacher/homework/completions?homeworkId=${homeworkId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCompletions(data.completions || []);
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to fetch completions",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      const { getHomeworkCompletions } = await import("@/lib/fastapi-client");
+      const data = await getHomeworkCompletions(homeworkId);
+      setCompletions(data.completions || data || []);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch completions",
+        description: error.message || "Failed to fetch completions",
         variant: "destructive",
       });
     } finally {
@@ -304,33 +266,23 @@ export default function TeacherHomeworkPage() {
   const handleApproveReject = async (completionId: string, action: 'approve' | 'reject') => {
     try {
       setApproving(completionId);
-      const response = await fetch("/api/teacher/homework/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completionId, action }),
+      const { approveHomework } = await import("@/lib/fastapi-client");
+      await approveHomework({
+        completionId,
+        status: action === 'approve' ? 'approved' : 'rejected',
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        toast({
-          title: "Success",
-          description: data.message,
-        });
-        if (selectedHomeworkId) {
-          fetchCompletions(selectedHomeworkId);
-        }
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to update status",
-          variant: "destructive",
-        });
+      toast({
+        title: "Success",
+        description: `Homework ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
+      });
+      if (selectedHomeworkId) {
+        fetchCompletions(selectedHomeworkId);
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update status",
+        description: error.message || "Failed to update status",
         variant: "destructive",
       });
     } finally {

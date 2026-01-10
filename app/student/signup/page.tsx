@@ -47,31 +47,20 @@ export default function StudentSignupPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          role: "student",
-        }),
+      const { userSignup } = await import("@/lib/fastapi-client");
+      const data = await userSignup({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        role: "student",
       });
-
-      const data = await res.json();
-
-      if (res.ok) {
+      if (data) {
         toast({
           title: "Success",
           description: data.message || "Account created successfully!",
         });
         router.push("/student/login");
-      } else {
-        toast({
-          title: "Error",
-          description: data.error || "Failed to create account",
-          variant: "destructive",
-        });
       }
     } catch (error) {
       toast({

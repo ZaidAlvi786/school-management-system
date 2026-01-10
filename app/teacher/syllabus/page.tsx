@@ -111,15 +111,13 @@ export default function TeacherSyllabusPage() {
 
   const fetchData = async () => {
     try {
-      const response = await fetch("/api/teacher/syllabus");
-      if (response.ok) {
-        const data = await response.json();
-        setSyllabus(data.syllabus || []);
-      }
-    } catch (error) {
+      const { getTeacherSyllabus } = await import("@/lib/fastapi-client");
+      const data = await getTeacherSyllabus();
+      setSyllabus(data.syllabus || data || []);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch syllabus",
+        description: error.message || "Failed to fetch syllabus",
         variant: "destructive",
       });
     } finally {
@@ -129,12 +127,10 @@ export default function TeacherSyllabusPage() {
 
   const fetchSubjectsAndClasses = async () => {
     try {
-      const response = await fetch("/api/teacher/syllabus/subjects-classes");
-      if (response.ok) {
-        const data = await response.json();
-        setClasses(data.classes || []);
-      }
-    } catch (error) {
+      const { getSyllabusSubjectsClasses } = await import("@/lib/fastapi-client");
+      const data = await getSyllabusSubjectsClasses();
+      setClasses(data.classes || []);
+    } catch (error: any) {
       console.error("Failed to fetch subjects and classes:", error);
     }
   };
@@ -147,16 +143,17 @@ export default function TeacherSyllabusPage() {
     setSubmitting(true);
 
     try {
-      const url = editingItem 
-        ? `/api/teacher/syllabus/${editingItem.id}`
-        : "/api/teacher/syllabus";
+      const { createSyllabus, updateSyllabus } = await import("@/lib/fastapi-client");
       
-      const method = editingItem ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      if (editingItem) {
+        await updateSyllabus(editingItem.id, {
+          topic: formData.topic,
+          description: formData.description,
+          status: "pending",
+          is_completed: false,
+        });
+      } else {
+        await createSyllabus({
           topic: formData.topic,
           description: formData.description,
           subjectId: formData.subjectId,
@@ -164,29 +161,20 @@ export default function TeacherSyllabusPage() {
           term: formData.term,
           targetCompletionDate: formData.targetCompletionDate || null,
           notes: formData.notes,
-        }),
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: editingItem ? "Syllabus updated successfully" : "Syllabus added successfully",
-        });
-        setShowDialog(false);
-        resetForm();
-        fetchData();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to save syllabus",
-          variant: "destructive",
         });
       }
-    } catch (error) {
+
+      toast({
+        title: "Success",
+        description: editingItem ? "Syllabus updated successfully" : "Syllabus added successfully",
+      });
+      setShowDialog(false);
+      resetForm();
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to save syllabus",
+        description: error.message || "Failed to save syllabus",
         variant: "destructive",
       });
     } finally {
@@ -212,28 +200,18 @@ export default function TeacherSyllabusPage() {
     if (!confirm("Are you sure you want to delete this syllabus item?")) return;
 
     try {
-      const response = await fetch(`/api/teacher/syllabus/${id}`, {
-        method: "DELETE",
+      const { deleteSyllabus } = await import("@/lib/fastapi-client");
+      await deleteSyllabus(id);
+      
+      toast({
+        title: "Success",
+        description: "Syllabus deleted successfully",
       });
-
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Syllabus deleted successfully",
-        });
-        fetchData();
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to delete syllabus",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to delete syllabus",
+        description: error.message || "Failed to delete syllabus",
         variant: "destructive",
       });
     }
@@ -241,25 +219,20 @@ export default function TeacherSyllabusPage() {
 
   const handleToggleComplete = async (item: SyllabusItem) => {
     try {
-      const response = await fetch(`/api/teacher/syllabus/${item.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          is_completed: !item.is_completed,
-        }),
+      const { updateSyllabus } = await import("@/lib/fastapi-client");
+      await updateSyllabus(item.id, {
+        is_completed: !item.is_completed,
       });
 
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: item.is_completed ? "Marked as incomplete" : "Marked as completed",
-        });
-        fetchData();
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: item.is_completed ? "Marked as incomplete" : "Marked as completed",
+      });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update status",
+        description: error.message || "Failed to update status",
         variant: "destructive",
       });
     }

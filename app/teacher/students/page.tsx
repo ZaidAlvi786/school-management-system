@@ -92,44 +92,36 @@ export default function TeacherStudentsPage() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/teacher/students");
-      if (res.ok) {
-        const data = await res.json();
-        // Map students data
-        const mappedStudents = (data.students || []).map((student: any) => ({
-          ...student,
-          _id: student.id || student._id,
-          rollNumber: student.roll_number || student.rollNumber,
-          admissionNumber: student.admission_number || student.admissionNumber,
-          dateOfBirth: student.date_of_birth || student.dateOfBirth,
-        }));
-        // Map sections data to convert id to _id and current_strength to currentStrength
-        const mappedSections = (data.sections || []).map((section: any) => ({
-          ...section,
-          _id: section.id || section._id,
-          currentStrength: section.current_strength || section.currentStrength || 0,
-        }));
-        setStudents(mappedStudents);
-        setSections(mappedSections);
-        setIsClassIncharge(true);
+      const { getTeacherStudents } = await import("@/lib/fastapi-client");
+      const data = await getTeacherStudents();
+      
+      // Map students data
+      const mappedStudents = (data.students || data || []).map((student: any) => ({
+        ...student,
+        _id: student.id || student._id,
+        rollNumber: student.roll_number || student.rollNumber,
+        admissionNumber: student.admission_number || student.admissionNumber,
+        dateOfBirth: student.date_of_birth || student.dateOfBirth,
+      }));
+      // Map sections data
+      const mappedSections = (data.sections || []).map((section: any) => ({
+        ...section,
+        _id: section.id || section._id,
+        currentStrength: section.current_strength || section.currentStrength || 0,
+      }));
+      setStudents(mappedStudents);
+      setSections(mappedSections);
+      setIsClassIncharge(true);
+    } catch (error: any) {
+      if (error.message?.includes("not assigned as a class incharge")) {
+        setIsClassIncharge(false);
       } else {
-        const error = await res.json();
-        if (error.error?.includes("not assigned as a class incharge")) {
-          setIsClassIncharge(false);
-        } else {
-          toast({
-            title: "Error",
-            description: error.error || "Failed to fetch data",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch data",
+          variant: "destructive",
+        });
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch data",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -139,44 +131,32 @@ export default function TeacherStudentsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/teacher/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const { createStudent } = await import("@/lib/fastapi-client");
+      await createStudent(formData);
 
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Student added successfully",
-        });
-        setShowDialog(false);
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          rollNumber: "",
-          admissionNumber: "",
-          sectionId: "",
-          parentEmail: "",
-          parentName: "",
-          parentPhone: "",
-          dateOfBirth: "",
-          address: "",
-        });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to add student",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      toast({
+        title: "Success",
+        description: "Student added successfully",
+      });
+      setShowDialog(false);
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        rollNumber: "",
+        admissionNumber: "",
+        sectionId: "",
+        parentEmail: "",
+        parentName: "",
+        parentPhone: "",
+        dateOfBirth: "",
+        address: "",
+      });
+      fetchData();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to add student",
+        description: error.message || "Failed to add student",
         variant: "destructive",
       });
     } finally {

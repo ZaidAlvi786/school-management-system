@@ -11,8 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import FaceRegistrationDialog from "@/components/face-registration-dialog-simple";
 import FaceAttendanceDialog from "@/components/face-attendance-dialog";
-import FingerprintRegistrationDialog from "@/components/fingerprint-registration-dialog";
-import FingerprintAttendanceDialog from "@/components/fingerprint-attendance-dialog";
 import { useToast } from "@/components/ui/use-toast";
 
 interface Attendance {
@@ -36,12 +34,9 @@ export default function StudentAttendancePage() {
     totalDays: 0,
   });
   const [hasRegisteredFace, setHasRegisteredFace] = useState<boolean | null>(null);
-  const [hasRegisteredFingerprint, setHasRegisteredFingerprint] = useState<boolean | null>(null);
   const [checkingFace, setCheckingFace] = useState(false);
   const [showRegistrationDialog, setShowRegistrationDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
-  const [showFingerprintRegistrationDialog, setShowFingerprintRegistrationDialog] = useState(false);
-  const [showFingerprintAttendanceDialog, setShowFingerprintAttendanceDialog] = useState(false);
   const [isTodayMarked, setIsTodayMarked] = useState(false);
 
   useEffect(() => {
@@ -63,12 +58,9 @@ export default function StudentAttendancePage() {
   const checkFaceRegistration = async () => {
     try {
       setCheckingFace(true);
-      const response = await fetch("/api/student/face/check");
-      if (response.ok) {
-        const data = await response.json();
-        setHasRegisteredFace(data.hasRegisteredFace);
-        setHasRegisteredFingerprint(data.hasRegisteredFingerprint || false);
-      }
+      const { getFaceStatus } = await import("@/lib/fastapi-client");
+      const data = await getFaceStatus();
+      setHasRegisteredFace(data.hasRegisteredFace || false);
     } catch (error) {
       console.error("Failed to check registration:", error);
     } finally {
@@ -89,24 +81,22 @@ export default function StudentAttendancePage() {
 
   const fetchAttendance = async () => {
     try {
-      const response = await fetch("/api/student/attendance");
-      if (response.ok) {
-        const data = await response.json();
-        setAttendance(data);
-        
-        // Calculate stats
-        const presentCount = data.filter((a: Attendance) => a.status === "present" || a.status === "excused").length;
-        const absentCount = data.filter((a: Attendance) => a.status === "absent").length;
-        const total = data.length;
-        const percentage = total > 0 ? (presentCount / total) * 100 : 0;
-        
-        setStats({
-          presentDays: presentCount,
-          absentDays: absentCount,
-          attendancePercentage: percentage,
-          totalDays: total,
-        });
-      }
+      const { getStudentAttendance } = await import("@/lib/fastapi-client");
+      const data = await getStudentAttendance();
+      setAttendance(data);
+      
+      // Calculate stats
+      const presentCount = data.filter((a: Attendance) => a.status === "present" || a.status === "excused").length;
+      const absentCount = data.filter((a: Attendance) => a.status === "absent").length;
+      const total = data.length;
+      const percentage = total > 0 ? (presentCount / total) * 100 : 0;
+      
+      setStats({
+        presentDays: presentCount,
+        absentDays: absentCount,
+        attendancePercentage: percentage,
+        totalDays: total,
+      });
     } catch (error) {
       console.error("Failed to fetch attendance:", error);
     } finally {
@@ -197,7 +187,7 @@ export default function StudentAttendancePage() {
                 </div>
                 
                 {/* Registration Buttons */}
-                {((hasRegisteredFace === false || hasRegisteredFace === null) || (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)) && (
+                {(hasRegisteredFace === false || hasRegisteredFace === null) && (
                   <div className="flex flex-col sm:flex-row gap-3">
                     {hasRegisteredFace === false || hasRegisteredFace === null ? (
                       <Button
@@ -218,21 +208,11 @@ export default function StudentAttendancePage() {
                         )}
                       </Button>
                     ) : null}
-                    {hasRegisteredFingerprint === false || hasRegisteredFingerprint === null ? (
-                      <Button
-                        onClick={() => setShowFingerprintRegistrationDialog(true)}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white relative z-30"
-                        disabled={checkingFace}
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Register Fingerprint
-                      </Button>
-                    ) : null}
                   </div>
                 )}
 
                 {/* Attendance Marking Buttons */}
-                {!isTodayMarked && ((hasRegisteredFace === true) || (hasRegisteredFingerprint === true)) && (
+                {!isTodayMarked && hasRegisteredFace === true && (
                   <div className="flex flex-col sm:flex-row gap-3">
                     {hasRegisteredFace === true && (
                       <Button
@@ -241,15 +221,6 @@ export default function StudentAttendancePage() {
                       >
                         <CheckCircle2 className="h-4 w-4 mr-2" />
                         Mark with Face
-                      </Button>
-                    )}
-                    {hasRegisteredFingerprint === true && (
-                      <Button
-                        onClick={() => setShowFingerprintAttendanceDialog(true)}
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white relative z-30"
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Mark with Fingerprint
                       </Button>
                     )}
                   </div>
@@ -430,33 +401,6 @@ export default function StudentAttendancePage() {
       <FaceAttendanceDialog
         open={showAttendanceDialog}
         onOpenChange={setShowAttendanceDialog}
-        onSuccess={() => {
-          fetchAttendance();
-          toast({
-            title: "Success",
-            description: "Your attendance has been marked successfully!",
-          });
-        }}
-      />
-
-      {/* Fingerprint Registration Dialog */}
-      <FingerprintRegistrationDialog
-        open={showFingerprintRegistrationDialog}
-        onOpenChange={setShowFingerprintRegistrationDialog}
-        onSuccess={() => {
-          setHasRegisteredFingerprint(true);
-          checkFaceRegistration();
-          toast({
-            title: "Success",
-            description: "Your fingerprint has been registered successfully!",
-          });
-        }}
-      />
-
-      {/* Fingerprint Attendance Dialog */}
-      <FingerprintAttendanceDialog
-        open={showFingerprintAttendanceDialog}
-        onOpenChange={setShowFingerprintAttendanceDialog}
         onSuccess={() => {
           fetchAttendance();
           toast({

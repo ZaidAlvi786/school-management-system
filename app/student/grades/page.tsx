@@ -53,25 +53,23 @@ export default function StudentGradesPage() {
 
   const fetchGrades = async () => {
     try {
-      const response = await fetch("/api/student/grades");
-      if (response.ok) {
-        const data = await response.json();
-        setGrades(data);
+      const { getStudentGrades } = await import("@/lib/fastapi-client");
+      const data = await getStudentGrades();
+      setGrades(data);
+      
+      // Calculate stats
+      if (data.length > 0) {
+        const totalPercentage = data.reduce((sum: number, grade: Grade) => sum + grade.percentage, 0);
+        const avgPercentage = totalPercentage / data.length;
+        const highestGrade = Math.max(...data.map((g: Grade) => g.percentage));
         
-        // Calculate stats
-        if (data.length > 0) {
-          const totalPercentage = data.reduce((sum: number, grade: Grade) => sum + grade.percentage, 0);
-          const avgPercentage = totalPercentage / data.length;
-          const highestGrade = Math.max(...data.map((g: Grade) => g.percentage));
-          
-          setStats({
-            averagePercentage: avgPercentage,
-            totalExams: data.length,
-            highestGrade: highestGrade,
-          });
-        }
+        setStats({
+          averagePercentage: avgPercentage,
+          totalExams: data.length,
+          highestGrade: highestGrade,
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch grades:", error);
     } finally {
       setLoading(false);

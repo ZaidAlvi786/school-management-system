@@ -51,12 +51,10 @@ export default function StudentMaterialsPage() {
 
   const fetchMaterials = async () => {
     try {
-      const response = await fetch("/api/student/materials");
-      if (response.ok) {
-        const data = await response.json();
-        setMaterials(data);
-      }
-    } catch (error) {
+      const { getStudentMaterials } = await import("@/lib/fastapi-client");
+      const data = await getStudentMaterials();
+      setMaterials(data);
+    } catch (error: any) {
       console.error("Failed to fetch materials:", error);
     } finally {
       setLoading(false);

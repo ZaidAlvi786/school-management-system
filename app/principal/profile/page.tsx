@@ -50,28 +50,19 @@ export default function PrincipalProfilePage() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/profile");
-      if (response.ok) {
-        const data = await response.json();
-        setProfile({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          profilePicture: data.profilePicture || "",
-        });
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to load profile",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      const { getProfile } = await import("@/lib/fastapi-client");
+      const data = await getProfile();
+      setProfile({
+        name: data.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        profilePicture: data.profilePicture || "",
+      });
+    } catch (error: any) {
       console.error("Failed to fetch profile:", error);
       toast({
         title: "Error",
-        description: "Failed to load profile",
+        description: error.message || "Failed to load profile",
         variant: "destructive",
       });
     } finally {
@@ -104,35 +95,14 @@ export default function PrincipalProfilePage() {
 
     try {
       setUploadingImage(true);
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch("/api/profile/upload", {
-        method: "POST",
-        body: formData,
+      const { uploadProfilePicture } = await import("@/lib/fastapi-client");
+      const data = await uploadProfilePicture(file);
+      
+      setProfile({ ...profile, profilePicture: data.profilePicture });
+      toast({
+        title: "Success",
+        description: "Profile picture updated successfully",
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to upload image");
-      }
-
-      const updateResponse = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profilePicture: data.url }),
-      });
-
-      if (updateResponse.ok) {
-        setProfile({ ...profile, profilePicture: data.url });
-        toast({
-          title: "Success",
-          description: "Profile picture updated successfully",
-        });
-      } else {
-        throw new Error("Failed to update profile picture");
-      }
     } catch (error: any) {
       console.error("Failed to upload image:", error);
       toast({
@@ -149,20 +119,11 @@ export default function PrincipalProfilePage() {
     e.preventDefault();
     try {
       setSaving(true);
-      const response = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: profile.name,
-          phone: profile.phone,
-        }),
+      const { updateProfile } = await import("@/lib/fastapi-client");
+      await updateProfile({
+        name: profile.name,
+        phone: profile.phone,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to update profile");
-      }
 
       toast({
         title: "Success",
@@ -203,20 +164,8 @@ export default function PrincipalProfilePage() {
 
     try {
       setChangingPassword(true);
-      const response = await fetch("/api/profile/password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to change password");
-      }
+      const { changePassword } = await import("@/lib/fastapi-client");
+      await changePassword(passwordData.currentPassword, passwordData.newPassword);
 
       toast({
         title: "Success",

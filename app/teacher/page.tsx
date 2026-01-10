@@ -46,23 +46,19 @@ export default function TeacherDashboard() {
 
   const fetchStats = async () => {
     try {
-      const [studentsRes, gradesRes, homeworkRes, attendanceRes] = await Promise.all([
-        fetch("/api/teacher/students").catch(() => null),
-        fetch("/api/grades").catch(() => null),
-        fetch("/api/homework").catch(() => null),
-        fetch("/api/attendance").catch(() => null),
+      const { getTeacherStudents, getGrades, getHomework, getAttendance } = await import("@/lib/fastapi-client");
+      const [studentsData, gradesData, homeworkData, attendanceData] = await Promise.all([
+        getTeacherStudents().catch(() => ({ students: [] })),
+        getGrades().catch(() => []),
+        getHomework().catch(() => []),
+        getAttendance().catch(() => []),
       ]);
 
-      const students = studentsRes?.ok ? (await studentsRes.json())?.students || [] : [];
-      const grades = gradesRes?.ok ? await gradesRes.json() : [];
-      const homework = homeworkRes?.ok ? await homeworkRes.json() : [];
-      const attendance = attendanceRes?.ok ? await attendanceRes.json() : [];
-
       setStats({
-        students: students.length || 0,
-        grades: grades.length || 0,
-        homework: homework.length || 0,
-        attendance: attendance.length || 0,
+        students: (studentsData.students || studentsData || []).length || 0,
+        grades: (gradesData || []).length || 0,
+        homework: (homeworkData || []).length || 0,
+        attendance: (attendanceData || []).length || 0,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);

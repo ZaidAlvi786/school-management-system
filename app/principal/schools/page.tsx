@@ -63,11 +63,9 @@ export default function PrincipalSchoolsPage() {
 
   const fetchSchools = async () => {
     try {
-      const res = await fetch("/api/admin/schools");
-      if (res.ok) {
-        const data = await res.json();
-        setSchools(data);
-      }
+      const { getSchools } = await import("@/lib/fastapi-client");
+      const data = await getSchools();
+      setSchools(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch schools", error);
     } finally {

@@ -90,13 +90,16 @@ export default function TeacherPaperGeneratorPage() {
 
   const fetchPapers = async () => {
     try {
-      const res = await fetch("/api/papers");
-      if (res.ok) {
-        const data = await res.json();
-        setPapers(data);
-      }
-    } catch (error) {
+      const { getPapers } = await import("@/lib/fastapi-client");
+      const data = await getPapers();
+      setPapers(data);
+    } catch (error: any) {
       console.error("Error fetching papers:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch papers",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -104,28 +107,15 @@ export default function TeacherPaperGeneratorPage() {
 
   const fetchClassesAndSubjects = async () => {
     try {
-      const res = await fetch("/api/teacher/classes-subjects");
-      if (res.ok) {
-        const data = await res.json();
-        // API returns { classes: [...] } or just the array
-        const classesData = data.classes || (Array.isArray(data) ? data : []);
-        console.log("Fetched classes:", classesData);
-        setClasses(Array.isArray(classesData) ? classesData : []);
-      } else {
-        const errorData = await res.json();
-        console.error("Error response:", errorData);
-        toast({
-          title: "Error",
-          description: errorData.error || "Failed to fetch classes",
-          variant: "destructive",
-        });
-        setClasses([]);
-      }
-    } catch (error) {
+      const { getClassesSubjects } = await import("@/lib/fastapi-client");
+      const data = await getClassesSubjects();
+      const classesData = data.classes || (Array.isArray(data) ? data : []);
+      setClasses(Array.isArray(classesData) ? classesData : []);
+    } catch (error: any) {
       console.error("Error fetching classes:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch classes. Please try again.",
+        description: error.message || "Failed to fetch classes",
         variant: "destructive",
       });
       setClasses([]);
@@ -202,37 +192,25 @@ export default function TeacherPaperGeneratorPage() {
         submitFormData.append("savedFormatId", selectedFormat);
       }
 
-      const res = await fetch("/api/papers", {
-        method: "POST",
-        body: submitFormData,
-      });
+      const { createPaper } = await import("@/lib/fastapi-client");
+      await createPaper(submitFormData);
 
-      if (res.ok) {
-        const data = await res.json();
-        toast({
-          title: "Success",
-          description: "Paper generated successfully!",
-        });
-        setShowDialog(false);
-        setFormData({
-          title: "",
-          classId: "",
-          subjectId: "",
-          syllabusInfo: "",
-          term: "all",
-        });
-        setSelectedFile(null);
-        setSelectedSyllabusTopics([]);
-        setSelectedFormat(null);
-        fetchPapers();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to generate paper",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Success",
+        description: "Paper generated successfully!",
+      });
+      setShowDialog(false);
+      setFormData({
+        title: "",
+        classId: "",
+        subjectId: "",
+        syllabusInfo: "",
+        term: "all",
+      });
+      setSelectedFile(null);
+      setSelectedSyllabusTopics([]);
+      setSelectedFormat(null);
+      fetchPapers();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -246,32 +224,26 @@ export default function TeacherPaperGeneratorPage() {
 
   const handleDownload = async (paperId: string, title: string) => {
     try {
-      const res = await fetch(`/api/papers/${paperId}/download`);
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.docx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast({
-          title: "Success",
-          description: "Paper downloaded successfully!",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to download paper",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      const { downloadPaper } = await import("@/lib/fastapi-client");
+      const response = await downloadPaper(paperId);
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({
+        title: "Success",
+        description: "Paper downloaded successfully!",
+      });
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to download paper",
+        description: error.message || "Failed to download paper",
         variant: "destructive",
       });
     }
@@ -288,17 +260,13 @@ export default function TeacherPaperGeneratorPage() {
 
     setLoadingSyllabus(true);
     try {
-      const response = await fetch(
-        `/api/teacher/paper/syllabus?subjectId=${formData.subjectId}&classId=${formData.classId}&term=${formData.term}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSyllabusTopics(data.syllabus || []);
-        // Auto-select all topics by default
-        const allIds = (data.syllabus || []).map((item: any) => item.id);
-        setSelectedSyllabusTopics(allIds);
-      }
-    } catch (error) {
+      const { getPaperSyllabus } = await import("@/lib/fastapi-client");
+      const data = await getPaperSyllabus(formData.subjectId, formData.classId);
+      setSyllabusTopics(data.syllabus || data || []);
+      // Auto-select all topics by default
+      const allIds = (data.syllabus || data || []).map((item: any) => item.id);
+      setSelectedSyllabusTopics(allIds);
+    } catch (error: any) {
       console.error("Failed to fetch syllabus:", error);
     } finally {
       setLoadingSyllabus(false);
@@ -309,14 +277,10 @@ export default function TeacherPaperGeneratorPage() {
     if (!formData.subjectId || !formData.classId) return;
 
     try {
-      const response = await fetch(
-        `/api/teacher/paper/saved-formats?subjectId=${formData.subjectId}&classId=${formData.classId}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSavedFormats(data.formats || []);
-      }
-    } catch (error) {
+      const { getSavedFormats } = await import("@/lib/fastapi-client");
+      const data = await getSavedFormats();
+      setSavedFormats(data.formats || data || []);
+    } catch (error: any) {
       console.error("Failed to fetch saved formats:", error);
     }
   };

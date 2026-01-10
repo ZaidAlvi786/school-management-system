@@ -43,17 +43,22 @@ export default function StudentForecastPage() {
     try {
       setRefreshing(true);
       setError(null);
-      const response = await fetch("/api/student/forecast");
-      if (response.ok) {
-        const data = await response.json();
-        setForecast(data);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || "Failed to generate forecast");
-      }
+      const { getStudentForecast, predictPerformance } = await import("@/lib/fastapi-client");
+      
+      // Get forecast data
+      const forecastData = await getStudentForecast();
+      
+      // Call AI forecast endpoint
+      const aiForecast = await predictPerformance({
+        pastGrades: forecastData.pastGrades || [],
+        attendance: forecastData.attendance || {},
+        syllabusProgress: forecastData.syllabusProgress || {},
+      });
+      
+      setForecast(aiForecast);
     } catch (error: any) {
       console.error("Failed to fetch forecast:", error);
-      setError("Failed to generate forecast. Please try again.");
+      setError(error.message || "Failed to generate forecast. Please try again.");
     } finally {
       setLoading(false);
       setRefreshing(false);

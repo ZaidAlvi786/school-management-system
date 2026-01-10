@@ -47,31 +47,20 @@ export default function ParentSignupPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          role: "parent",
-        }),
+      const { userSignup } = await import("@/lib/fastapi-client");
+      const data = await userSignup({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        role: "parent",
       });
-
-      const data = await res.json();
-
-      if (res.ok) {
+      if (data) {
         toast({
           title: "Success",
           description: data.message || "Account created successfully!",
         });
         router.push("/parent/login");
-      } else {
-        toast({
-          title: "Error",
-          description: data.error || "Failed to create account",
-          variant: "destructive",
-        });
       }
     } catch (error) {
       toast({

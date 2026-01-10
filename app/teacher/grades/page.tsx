@@ -91,28 +91,21 @@ export default function TeacherGradesPage() {
 
   const fetchData = async () => {
     try {
-      const [gradesRes, subjectsRes] = await Promise.all([
-        fetch("/api/grades"),
-        fetch("/api/admin/teachers"),
+      const { getGrades, getClassesSubjects } = await import("@/lib/fastapi-client");
+      const [gradesData, classesData] = await Promise.all([
+        getGrades(),
+        getClassesSubjects(),
       ]);
 
-      if (gradesRes.ok) {
-        const gradesData = await gradesRes.json();
-        setGrades(gradesData);
-      }
-
-      if (subjectsRes.ok) {
-        const teachersData = await subjectsRes.json();
-        // Get subjects from teacher's assigned subjects
-        const teacherSubjects = teachersData
-          .flatMap((t: any) => t.assignedSubjects || [])
-          .map((s: any) => s.class);
-        setSubjects(teacherSubjects);
-      }
-    } catch (error) {
+      setGrades(gradesData);
+      
+      // Get subjects from classes data
+      const teacherSubjects = classesData.subjects || [];
+      setSubjects(teacherSubjects);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to fetch data",
+        description: error.message || "Failed to fetch data",
         variant: "destructive",
       });
     } finally {
@@ -123,40 +116,28 @@ export default function TeacherGradesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/grades", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          marks: parseFloat(formData.marks),
-          totalMarks: parseFloat(formData.totalMarks),
-        }),
+      const { createGrade } = await import("@/lib/fastapi-client");
+      await createGrade({
+        ...formData,
+        marks: parseFloat(formData.marks),
+        totalMarks: parseFloat(formData.totalMarks),
       });
 
-      if (res.ok) {
-        toast({
-          title: "Success",
-          description: "Grade added successfully",
-        });
-        setShowDialog(false);
-        setFormData({
-          student: "",
-          subject: "",
-          examType: "quiz",
-          marks: "",
-          totalMarks: "",
-          remarks: "",
-          date: new Date().toISOString().split("T")[0],
-        });
-        fetchData();
-      } else {
-        const error = await res.json();
-        toast({
-          title: "Error",
-          description: error.error || "Failed to add grade",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Success",
+        description: "Grade added successfully",
+      });
+      setShowDialog(false);
+      setFormData({
+        student: "",
+        subject: "",
+        examType: "quiz",
+        marks: "",
+        totalMarks: "",
+        remarks: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+      fetchData();
     } catch (error) {
       toast({
         title: "Error",

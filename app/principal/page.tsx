@@ -46,26 +46,23 @@ export default function PrincipalDashboard() {
 
   const fetchStats = async () => {
     try {
-      const [schoolsRes, classesRes, teachersRes] = await Promise.all([
-        fetch("/api/admin/schools"),
-        fetch("/api/admin/classes"),
-        fetch("/api/admin/teachers"),
+      const { getSchools, getClasses, getTeachers } = await import("@/lib/fastapi-client");
+      const [schools, classes, teachers] = await Promise.all([
+        getSchools().catch(() => []),
+        getClasses().catch(() => []),
+        getTeachers().catch(() => []),
       ]);
-
-      const schools = schoolsRes.ok ? await schoolsRes.json() : [];
-      const classes = classesRes.ok ? await classesRes.json() : [];
-      const teachers = teachersRes.ok ? await teachersRes.json() : [];
 
       // Count students from classes
       let studentsCount = 0;
-      classes.forEach((cls: any) => {
+      (classes || []).forEach((cls: any) => {
         studentsCount += cls.sections?.reduce((acc: number, sec: any) => acc + (sec.currentStrength || 0), 0) || 0;
       });
 
       setStats({
-        schools: schools.length || 0,
-        classes: classes.length || 0,
-        teachers: teachers.length || 0,
+        schools: (schools || []).length || 0,
+        classes: (classes || []).length || 0,
+        teachers: (teachers || []).length || 0,
         students: studentsCount,
       });
     } catch (error) {
