@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Camera, CheckCircle2, X, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { registerFace } from "@/lib/fastapi-client";
 
 interface FaceRegistrationDialogProps {
   open: boolean;
@@ -25,6 +27,7 @@ export default function FaceRegistrationDialog({
   onSuccess,
   userType = "student",
 }: FaceRegistrationDialogProps) {
+  const { data: session } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -130,45 +133,32 @@ export default function FaceRegistrationDialog({
     });
   };
 
-  const registerFace = async () => {
-    if (!capturedImage || isProcessing) return;
+  const handleRegisterFace = async () => {
+    if (!capturedImage || isProcessing || !session?.user) return;
 
     try {
       setIsProcessing(true);
       setError(null);
+
+      if (!session.user.id) {
+        throw new Error("User ID not found. Please log in again.");
+      }
 
       toast({
         title: "Processing",
         description: "Registering your face...",
       });
 
-      // Convert base64 image to blob
-      const response = await fetch(capturedImage);
-      const blob = await response.blob();
-      
-      // Create FormData
-      const formData = new FormData();
-      formData.append("faceImage", blob, "face.jpg");
-
-      // Send to server
-      const apiEndpoint = userType === "teacher" 
-        ? "/api/teacher/face/register-image"
-        : "/api/student/face/register-image";
-      
-      const registerResponse = await fetch(apiEndpoint, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await registerResponse.json();
-
-      if (!registerResponse.ok) {
-        throw new Error(data.error || "Failed to register face");
-      }
+      // Send base64 image directly to FastAPI
+      const result = await registerFace(
+        session.user.id,
+        userType,
+        capturedImage
+      );
 
       toast({
         title: "Success!",
-        description: "Your face has been registered successfully!",
+        description: result.message || "Your face has been registered successfully!",
       });
 
       stopCamera();
@@ -271,8 +261,8 @@ export default function FaceRegistrationDialog({
                   Retake
                 </Button>
                 <Button
-                  onClick={registerFace}
-                  disabled={isProcessing}
+                  onClick={handleRegisterFace}
+                  disabled={isProcessing || !session?.user}
                   className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                 >
                   {isProcessing ? (
