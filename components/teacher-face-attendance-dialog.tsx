@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Camera, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { markAttendance } from "@/lib/fastapi-client";
 
 interface TeacherFaceAttendanceDialogProps {
   open: boolean;
@@ -23,60 +25,29 @@ export default function TeacherFaceAttendanceDialog({
   onOpenChange,
   onSuccess,
 }: TeacherFaceAttendanceDialogProps) {
+  const { data: session } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [scanning, setScanning] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>("Initializing...");
-  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const faceApiRef = useRef<any>(null);
-  const consecutiveDetectionsRef = useRef(0);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      loadModels();
+      startCamera();
     } else {
       stopCamera();
       setCapturedImage(null);
       setError(null);
-      setScanning(false);
       setIsProcessing(false);
     }
     return () => {
       stopCamera();
     };
   }, [open]);
-
-  const loadModels = async () => {
-    try {
-      setStatusMessage("Loading models...");
-      const faceapi = await import("face-api.js");
-      faceApiRef.current = faceapi;
-
-      const MODEL_URL = process.env.NODE_ENV === "production"
-        ? "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights"
-        : "/models";
-
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      ]);
-
-      startCamera();
-    } catch (err) {
-      console.error("Error loading models:", err);
-      // Fallback to manual mode if models fail
-      toast({
-        title: "Model Error",
-        description: "Face detection models failed to load. You can still capture manually.",
-        variant: "destructive",
-      });
-      startCamera();
-    }
-  };
 
   const startCamera = async () => {
     try {
@@ -95,14 +66,7 @@ export default function TeacherFaceAttendanceDialog({
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         await videoRef.current.play();
-
-        // Start detection loop if models are loaded
-        if (faceApiRef.current) {
-          setScanning(true);
-          startFaceDetection();
-        } else {
-          setStatusMessage("Ready to capture");
-        }
+        setStatusMessage("Ready to capture");
       }
     } catch (err: any) {
       console.error("Camera error:", err);
@@ -119,47 +83,6 @@ export default function TeacherFaceAttendanceDialog({
         variant: "destructive",
       });
     }
-  };
-
-  const startFaceDetection = async () => {
-    if (!videoRef.current || !faceApiRef.current) return;
-
-    // Small delay to ensure video is ready
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const detectFace = async () => {
-      try {
-        if (!videoRef.current || videoRef.current.readyState !== 4 || !faceApiRef.current || isProcessing || capturedImage) {
-          return;
-        }
-
-        const faceapi = faceApiRef.current;
-        const options = new faceapi.TinyFaceDetectorOptions({
-          inputSize: 416,
-          scoreThreshold: 0.3
-        });
-
-        const detection = await faceapi.detectSingleFace(videoRef.current, options);
-
-        if (detection) {
-          setStatusMessage("Face detected! Hold still...");
-          consecutiveDetectionsRef.current += 1;
-
-          if (consecutiveDetectionsRef.current > 5) {
-            capturePhoto();
-          }
-        } else {
-          setStatusMessage("Looking for face...");
-          consecutiveDetectionsRef.current = 0;
-        }
-      } catch (err) {
-        console.error("Face detection error:", err);
-        consecutiveDetectionsRef.current = 0;
-      }
-    };
-
-    if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-    detectionIntervalRef.current = setInterval(detectFace, 200);
   };
 
   const capturePhoto = () => {
@@ -179,11 +102,6 @@ export default function TeacherFaceAttendanceDialog({
 
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
       setCapturedImage(imageData);
-      setScanning(false);
-
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
-      }
 
       toast({
         title: "Photo Captured",
@@ -191,7 +109,7 @@ export default function TeacherFaceAttendanceDialog({
       });
 
       // Auto-submit after capture
-      markAttendance(imageData);
+      markAttendanceFromImage(imageData);
 
     } catch (err: any) {
       console.error("Capture error:", err);
@@ -206,49 +124,43 @@ export default function TeacherFaceAttendanceDialog({
   const retakePhoto = () => {
     setCapturedImage(null);
     setIsProcessing(false);
-    setScanning(true);
-    consecutiveDetectionsRef.current = 0;
-    startFaceDetection();
   };
 
-  const markAttendance = async (imageDataArg?: string) => {
+  const markAttendanceFromImage = async (imageDataArg?: string) => {
     const imgData = imageDataArg || capturedImage;
-    if (!imgData || isProcessing) return;
+    if (!imgData || isProcessing || !session?.user) return;
 
     try {
       setIsProcessing(true);
       setError(null);
 
-      // Stop detection loop just in case
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
-      }
+      // Mark attendance via FastAPI
+      const result = await markAttendance(
+        imgData,
+        "teacher",
+        undefined,
+        "web"
+      );
 
-      // Convert base64 image to blob
-      const response = await fetch(imgData);
-      const blob = await response.blob();
-
-      // Create FormData
-      const formData = new FormData();
-      formData.append("faceImage", blob, "face.jpg");
-
-      // Send to server
-      const registerResponse = await fetch("/api/teacher/attendance/mark-face", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await registerResponse.json();
-
-      if (!registerResponse.ok) {
-        throw new Error(data.error || "Failed to mark attendance");
+      if (result.already_marked) {
+        toast({
+          title: "Already Marked",
+          description: "Attendance already marked for today.",
+          variant: "default",
+        });
+        stopCamera();
+        setTimeout(() => {
+          onSuccess();
+          onOpenChange(false);
+        }, 1500);
+        return;
       }
 
       toast({
         title: "Success!",
-        description: data.isLate
-          ? `Attendance marked! You were ${data.lateMinutes} minutes late.`
-          : "Attendance marked successfully!",
+        description: result.is_late
+          ? `Attendance marked! You were ${result.late_minutes} minutes late.`
+          : result.message,
         className: "bg-green-500 text-white",
       });
 
@@ -274,10 +186,6 @@ export default function TeacherFaceAttendanceDialog({
   };
 
   const stopCamera = () => {
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
-    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -324,7 +232,7 @@ export default function TeacherFaceAttendanceDialog({
                 />
                 <canvas ref={canvasRef} className="hidden" />
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className={`border-2 rounded-full w-48 h-48 flex items-center justify-center transition-colors ${scanning ? 'border-green-500/50' : 'border-white/50'}`}>
+                  <div className="border-2 rounded-full w-48 h-48 flex items-center justify-center border-white/50">
                     <div className="text-white text-sm text-center bg-black/50 px-3 py-1 rounded-full">
                       {statusMessage}
                     </div>
@@ -332,16 +240,14 @@ export default function TeacherFaceAttendanceDialog({
                 </div>
               </div>
 
-              {/* Manual capture button fallback */}
-              {!scanning && !isProcessing && (
-                <Button
-                  onClick={capturePhoto}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500"
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  Capture Manually
-                </Button>
-              )}
+              <Button
+                onClick={capturePhoto}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500"
+                disabled={isProcessing}
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                Capture Photo
+              </Button>
             </>
           ) : (
             <>
