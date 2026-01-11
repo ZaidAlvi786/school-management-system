@@ -117,7 +117,16 @@ export default function PrincipalsPage() {
     try {
       const { getPrincipals } = await import("@/lib/fastapi-client");
       const data = await getPrincipals();
-      setPrincipals(Array.isArray(data) ? data : []);
+      const mappedData = (Array.isArray(data) ? data : []).map((p: any) => ({
+        _id: p._id || p.id,
+        user: p.user || { _id: p.user_id || "", name: "", email: "" },
+        employeeId: p.employeeId || p.employee_id || "",
+        qualification: p.qualification || "",
+        experience: p.experience || 0,
+        school: p.school,
+        campus: p.campus,
+      }));
+      setPrincipals(mappedData);
     } catch (error) {
       toast({
         title: "Error",
@@ -131,7 +140,7 @@ export default function PrincipalsPage() {
 
   const handleAddPrincipal = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.email && !editingPrincipal) {
       toast({
         title: "Error",
@@ -142,7 +151,7 @@ export default function PrincipalsPage() {
     }
 
     try {
-      const url = editingPrincipal 
+      const url = editingPrincipal
         ? "update"
         : "create";
       const { createPrincipal, updatePrincipal } = await import("@/lib/fastapi-client");
@@ -161,17 +170,17 @@ export default function PrincipalsPage() {
           phone: formData.phone || undefined,
         });
       }
-        toast({
-          title: "Success",
-          description: editingPrincipal 
-            ? "Principal updated successfully" 
-            : "Principal added successfully. An invite will be sent if they don't have an account.",
-        });
-        setShowPrincipalDialog(false);
-        setEditingPrincipal(null);
-        setFormData({ email: "", name: "", phone: "", qualification: "", experience: 0 });
-        setSelectedPrincipal(null);
-        fetchPrincipals();
+      toast({
+        title: "Success",
+        description: editingPrincipal
+          ? "Principal updated successfully"
+          : "Principal added successfully. An invite will be sent if they don't have an account.",
+      });
+      setShowPrincipalDialog(false);
+      setEditingPrincipal(null);
+      setFormData({ email: "", name: "", phone: "", qualification: "", experience: 0 });
+      setSelectedPrincipal(null);
+      fetchPrincipals();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -199,11 +208,11 @@ export default function PrincipalsPage() {
     try {
       const { deletePrincipal } = await import("@/lib/fastapi-client");
       await deletePrincipal(principalId);
-        toast({
-          title: "Success",
-          description: "Principal deleted successfully",
-        });
-        fetchPrincipals();
+      toast({
+        title: "Success",
+        description: "Principal deleted successfully",
+      });
+      fetchPrincipals();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -268,8 +277,8 @@ export default function PrincipalsPage() {
               <DialogHeader>
                 <DialogTitle>{editingPrincipal ? "Edit Principal" : "Add Principal"}</DialogTitle>
                 <DialogDescription>
-                  {editingPrincipal 
-                    ? "Update principal information" 
+                  {editingPrincipal
+                    ? "Update principal information"
                     : "Add a principal to your school. An invite will be sent if they don't have an account."}
                 </DialogDescription>
               </DialogHeader>
@@ -277,98 +286,98 @@ export default function PrincipalsPage() {
                 {!editingPrincipal && (
                   <div className="space-y-2">
                     <Label htmlFor="principalEmail">Principal Email *</Label>
-                  <div className="relative">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="principalEmail"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => {
-                          setFormData({ ...formData, email: e.target.value });
-                          setSelectedPrincipal(null);
-                          setShowPrincipalSuggestions(true);
-                        }}
-                        onFocus={() => {
-                          if (principalSearchResults.length > 0) {
-                            setShowPrincipalSuggestions(true);
-                          }
-                        }}
-                        onBlur={() => {
-                          setTimeout(() => setShowPrincipalSuggestions(false), 200);
-                        }}
-                        placeholder="Search principal by email..."
-                        className="pl-10 pr-10"
-                        required
-                      />
-                      {formData.email && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFormData({ ...formData, email: "" });
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="principalEmail"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => {
+                            setFormData({ ...formData, email: e.target.value });
                             setSelectedPrincipal(null);
-                            setPrincipalSearchResults([]);
-                            setShowPrincipalSuggestions(false);
+                            setShowPrincipalSuggestions(true);
                           }}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                    {showPrincipalSuggestions && principalSearchResults.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
-                        {principalSearchLoading ? (
-                          <div className="p-3 text-sm text-gray-500 text-center">Searching...</div>
-                        ) : (
-                          principalSearchResults.map((user) => (
-                            <div
-                              key={user._id}
-                              onClick={() => {
-                                setFormData({ ...formData, email: user.email, name: user.name });
-                                setSelectedPrincipal({ email: user.email, name: user.name });
-                                setShowPrincipalSuggestions(false);
-                              }}
-                              className="p-3 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                                  <p className="text-xs text-gray-600">{user.email}</p>
-                                  {user.phone && (
-                                    <p className="text-xs text-gray-500 mt-1">📞 {user.phone}</p>
-                                  )}
-                                </div>
-                                {selectedPrincipal?.email === user.email && (
-                                  <Check className="h-4 w-4 text-green-500" />
-                                )}
-                              </div>
-                            </div>
-                          ))
+                          onFocus={() => {
+                            if (principalSearchResults.length > 0) {
+                              setShowPrincipalSuggestions(true);
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => setShowPrincipalSuggestions(false), 200);
+                          }}
+                          placeholder="Search principal by email..."
+                          className="pl-10 pr-10"
+                          required
+                        />
+                        {formData.email && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, email: "" });
+                              setSelectedPrincipal(null);
+                              setPrincipalSearchResults([]);
+                              setShowPrincipalSuggestions(false);
+                            }}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         )}
                       </div>
-                    )}
-                    {formData.email.length >= 2 && !principalSearchLoading && principalSearchResults.length === 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-                        <p className="text-sm text-gray-500 text-center">
-                          No principal found. An invite will be sent if the email doesn&apos;t have an account.
-                        </p>
-                      </div>
-                    )}
-                    {selectedPrincipal && (
-                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-600" />
-                          <div>
-                            <p className="text-sm font-medium text-green-900">
-                              Selected: {selectedPrincipal.name}
-                            </p>
-                            <p className="text-xs text-green-700">{selectedPrincipal.email}</p>
+                      {showPrincipalSuggestions && principalSearchResults.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+                          {principalSearchLoading ? (
+                            <div className="p-3 text-sm text-gray-500 text-center">Searching...</div>
+                          ) : (
+                            principalSearchResults.map((user) => (
+                              <div
+                                key={user._id}
+                                onClick={() => {
+                                  setFormData({ ...formData, email: user.email, name: user.name });
+                                  setSelectedPrincipal({ email: user.email, name: user.name });
+                                  setShowPrincipalSuggestions(false);
+                                }}
+                                className="p-3 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                                    <p className="text-xs text-gray-600">{user.email}</p>
+                                    {user.phone && (
+                                      <p className="text-xs text-gray-500 mt-1">📞 {user.phone}</p>
+                                    )}
+                                  </div>
+                                  {selectedPrincipal?.email === user.email && (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                      {formData.email.length >= 2 && !principalSearchLoading && principalSearchResults.length === 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+                          <p className="text-sm text-gray-500 text-center">
+                            No principal found. An invite will be sent if the email doesn&apos;t have an account.
+                          </p>
+                        </div>
+                      )}
+                      {selectedPrincipal && (
+                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-green-600" />
+                            <div>
+                              <p className="text-sm font-medium text-green-900">
+                                Selected: {selectedPrincipal.name}
+                              </p>
+                              <p className="text-xs text-green-700">{selectedPrincipal.email}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 <div className="space-y-2">
@@ -415,9 +424,9 @@ export default function PrincipalsPage() {
                   </>
                 )}
                 <DialogFooter>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => {
                       setShowPrincipalDialog(false);
                       setEditingPrincipal(null);
