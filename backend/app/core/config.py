@@ -41,7 +41,8 @@ class Settings(BaseSettings):
             return json.loads(self.CORS_ORIGINS)
         except (json.JSONDecodeError, TypeError):
             # If not JSON, split by comma
-            return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+            # Split by comma and strip whitespace and trailing slashes
+            return [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
     
     class Config:
         env_file = ".env"
