@@ -3,6 +3,8 @@
  * Centralized configuration for FastAPI backend calls
  */
 
+import type { Campus, Principal, Class, Teacher, Section } from "@/lib/types/database";
+
 const FASTAPI_URL = process.env.NEXT_PUBLIC_FASTAPI_URL || "http://localhost:8000";
 
 /**
@@ -13,12 +15,12 @@ async function getAuthToken(): Promise<string | null> {
     const response = await fetch("/api/auth/token", {
       credentials: "include", // Include cookies for session
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       return data.token || null;
     }
-    
+
     return null;
   } catch (error) {
     console.error("Error getting auth token:", error);
@@ -34,26 +36,26 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = await getAuthToken();
-  
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...options.headers,
   };
-  
+
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    (headers as any)["Authorization"] = `Bearer ${token}`;
   }
-  
+
   const response = await fetch(`${FASTAPI_URL}${endpoint}`, {
     ...options,
     headers,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || error.message || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 
@@ -125,8 +127,8 @@ export async function verifyToken(token: string) {
 }
 
 // ============ Public Auth (Signup/Domain) ============
-export async function checkDomain(domain: string) {
-  return apiRequest(`/api/auth/check-domain?domain=${encodeURIComponent(domain)}`);
+export async function checkDomain(domain: string): Promise<{ available: boolean; message?: string }> {
+  return apiRequest<{ available: boolean; message?: string }>(`/api/auth/check-domain?domain=${encodeURIComponent(domain)}`);
 }
 
 export async function userSignup(payload: {
@@ -135,14 +137,14 @@ export async function userSignup(payload: {
   password: string;
   phone?: string;
   role: "student" | "teacher" | "parent" | "principal";
-}) {
-  return apiRequest("/api/auth/signup", {
+}): Promise<{ message: string; user?: any }> {
+  return apiRequest<{ message: string; user?: any }>("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function adminSignup(formData: FormData) {
+export async function adminSignup(formData: FormData): Promise<{ message: string; school?: any }> {
   const token = await getAuthToken(); // optional if endpoint requires auth, otherwise can omit
   const headers: HeadersInit = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -160,8 +162,15 @@ export async function adminSignup(formData: FormData) {
 
 // ============ Profile ============
 
-export async function getProfile() {
-  return apiRequest("/api/profile");
+export interface ProfileResponse {
+  name: string;
+  email: string;
+  phone?: string;
+  profilePicture?: string;
+}
+
+export async function getProfile(): Promise<ProfileResponse> {
+  return apiRequest<ProfileResponse>("/api/profile");
 }
 
 export async function updateProfile(data: { name?: string; phone?: string }) {
@@ -181,24 +190,24 @@ export async function changePassword(currentPassword: string, newPassword: strin
 export async function uploadProfilePicture(image: File) {
   const formData = new FormData();
   formData.append("image", image);
-  
+
   const token = await getAuthToken();
   const headers: HeadersInit = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  
+
   const response = await fetch(`${FASTAPI_URL}/api/profile/upload`, {
     method: "POST",
     headers,
     body: formData,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || error.message || "Failed to upload picture");
   }
-  
+
   const data = await response.json();
   // Return in format expected by frontend
   return {
@@ -213,21 +222,21 @@ export async function getStudentInfo() {
   return apiRequest("/api/student/info");
 }
 
-export async function getStudentInfoById(studentId: string) {
-  return apiRequest(`/api/student/info?id=${encodeURIComponent(studentId)}`);
+export async function getStudentInfoById(studentId: string): Promise<{ name: string;[key: string]: any }> {
+  return apiRequest<{ name: string;[key: string]: any }>(`/api/student/info?id=${encodeURIComponent(studentId)}`);
 }
 
-export async function getStudentGrades() {
-  return apiRequest("/api/student/grades");
+export async function getStudentGrades(): Promise<any[]> {
+  return apiRequest<any[]>("/api/student/grades");
 }
 
-export async function getStudentAttendance(classId?: string) {
+export async function getStudentAttendance(classId?: string): Promise<any[]> {
   const params = classId ? `?classId=${classId}` : "";
-  return apiRequest(`/api/student/attendance${params}`);
+  return apiRequest<any[]>(`/api/student/attendance${params}`);
 }
 
-export async function getStudentHomework() {
-  return apiRequest("/api/student/homework");
+export async function getStudentHomework(): Promise<any[]> {
+  return apiRequest<any[]>("/api/student/homework");
 }
 
 export async function markHomeworkDone(homeworkId: string) {
@@ -237,26 +246,26 @@ export async function markHomeworkDone(homeworkId: string) {
   });
 }
 
-export async function getStudentMaterials() {
-  return apiRequest("/api/student/materials");
+export async function getStudentMaterials(): Promise<any[]> {
+  return apiRequest<any[]>("/api/student/materials");
 }
 
-export async function getStudentSyllabus() {
-  return apiRequest("/api/student/syllabus");
+export async function getStudentSyllabus(): Promise<any[]> {
+  return apiRequest<any[]>("/api/student/syllabus");
 }
 
-export async function getStudentQRCode() {
-  return apiRequest("/api/student/qr-code");
+export async function getStudentQRCode(): Promise<any> {
+  return apiRequest<any>("/api/student/qr-code");
 }
 
-export async function getStudentForecast() {
-  return apiRequest("/api/student/forecast");
+export async function getStudentForecast(): Promise<any> {
+  return apiRequest<any>("/api/student/forecast");
 }
 
 // ============ Teacher ============
 
-export async function getTeacherStudents() {
-  return apiRequest("/api/teacher/students");
+export async function getTeacherStudents(): Promise<any> {
+  return apiRequest<any>("/api/teacher/students");
 }
 
 export async function createStudent(data: any) {
@@ -266,8 +275,8 @@ export async function createStudent(data: any) {
   });
 }
 
-export async function getTeacherMaterials() {
-  return apiRequest("/api/teacher/materials");
+export async function getTeacherMaterials(): Promise<any[]> {
+  return apiRequest<any[]>("/api/teacher/materials");
 }
 
 export async function createMaterial(data: FormData) {
@@ -276,18 +285,18 @@ export async function createMaterial(data: FormData) {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  
+
   const response = await fetch(`${FASTAPI_URL}/api/teacher/materials`, {
     method: "POST",
     headers,
     body: data,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || error.message || "Failed to create material");
   }
-  
+
   return response.json();
 }
 
@@ -304,8 +313,8 @@ export async function deleteMaterial(materialId: string) {
   });
 }
 
-export async function getTeacherSyllabus() {
-  return apiRequest("/api/teacher/syllabus");
+export async function getTeacherSyllabus(): Promise<any> {
+  return apiRequest<any>("/api/teacher/syllabus");
 }
 
 export async function createSyllabus(data: any) {
@@ -328,24 +337,24 @@ export async function deleteSyllabus(syllabusId: string) {
   });
 }
 
-export async function getSyllabusSubjectsClasses() {
-  return apiRequest("/api/teacher/syllabus/subjects-classes");
+export async function getSyllabusSubjectsClasses(): Promise<any> {
+  return apiRequest<any>("/api/teacher/syllabus/subjects-classes");
 }
 
-export async function getPaperSyllabus(subjectId: string, classId: string) {
-  return apiRequest(`/api/teacher/paper/syllabus?subjectId=${subjectId}&classId=${classId}`);
+export async function getPaperSyllabus(subjectId: string, classId: string): Promise<any> {
+  return apiRequest<any>(`/api/teacher/paper/syllabus?subjectId=${subjectId}&classId=${classId}`);
 }
 
-export async function getSavedFormats() {
-  return apiRequest("/api/teacher/paper/saved-formats");
+export async function getSavedFormats(): Promise<any> {
+  return apiRequest<any>("/api/teacher/paper/saved-formats");
 }
 
-export async function getTeacherAttendance() {
-  return apiRequest("/api/teacher/attendance");
+export async function getTeacherAttendance(): Promise<any[]> {
+  return apiRequest<any[]>("/api/teacher/attendance");
 }
 
-export async function getFaceStatus() {
-  return apiRequest("/api/face/status");
+export async function getFaceStatus(): Promise<{ hasRegisteredFace: boolean }> {
+  return apiRequest<{ hasRegisteredFace: boolean }>("/api/face/status");
 }
 
 export async function markAttendanceManual(data: {
@@ -353,19 +362,19 @@ export async function markAttendanceManual(data: {
   date: string;
   status: string;
   remarks?: string;
-}) {
-  return apiRequest("/api/teacher/attendance/mark", {
+}): Promise<{ success: boolean; message: string }> {
+  return apiRequest<{ success: boolean; message: string }>("/api/teacher/attendance/mark", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export async function getClassesSubjects() {
-  return apiRequest("/api/teacher/classes-subjects");
+export async function getClassesSubjects(): Promise<any> {
+  return apiRequest<any>("/api/teacher/classes-subjects");
 }
 
-export async function getHomeworkCompletions(homeworkId: string) {
-  return apiRequest(`/api/teacher/homework/completions?homeworkId=${homeworkId}`);
+export async function getHomeworkCompletions(homeworkId: string): Promise<any> {
+  return apiRequest<any>(`/api/teacher/homework/completions?homeworkId=${homeworkId}`);
 }
 
 export async function approveHomework(data: {
@@ -381,8 +390,8 @@ export async function approveHomework(data: {
 
 // ============ Admin ============
 
-export async function getSchools() {
-  return apiRequest("/api/admin/schools");
+export async function getSchools(): Promise<any[]> {
+  return apiRequest<any[]>("/api/admin/schools");
 }
 
 export async function createSchool(data: any) {
@@ -392,8 +401,8 @@ export async function createSchool(data: any) {
   });
 }
 
-export async function getTeachers() {
-  return apiRequest("/api/admin/teachers");
+export async function getTeachers(): Promise<Teacher[]> {
+  return apiRequest<Teacher[]>("/api/admin/teachers");
 }
 
 export async function assignSubject(data: any) {
@@ -410,9 +419,18 @@ export async function updateSubjectTeacher(data: any) {
   });
 }
 
-export async function getClasses(campusId?: string) {
+export interface ClassWithRelations extends Omit<Class, "campus_id"> {
+  campus?: {
+    id: string;
+    name: string;
+    school_id: string;
+  };
+  sections?: Section[];
+}
+
+export async function getClasses(campusId?: string): Promise<ClassWithRelations[]> {
   const params = campusId ? `?campusId=${campusId}` : "";
-  return apiRequest(`/api/admin/classes${params}`);
+  return apiRequest<ClassWithRelations[]>(`/api/admin/classes${params}`);
 }
 
 export async function createClass(data: any) {
@@ -435,8 +453,8 @@ export async function deleteClass(id: string) {
   });
 }
 
-export async function getPrincipals() {
-  return apiRequest("/api/admin/principals");
+export async function getPrincipals(): Promise<Principal[]> {
+  return apiRequest<Principal[]>("/api/admin/principals");
 }
 
 export async function createPrincipal(data: any) {
@@ -479,9 +497,9 @@ export async function deleteSection(id: string) {
   });
 }
 
-export async function getCampuses(schoolId?: string) {
+export async function getCampuses(schoolId?: string): Promise<Campus[]> {
   const params = schoolId ? `?schoolId=${schoolId}` : "";
-  return apiRequest(`/api/admin/campuses${params}`);
+  return apiRequest<Campus[]>(`/api/admin/campuses${params}`);
 }
 
 export async function createCampus(data: any) {
@@ -504,8 +522,8 @@ export async function deleteCampus(id: string) {
   });
 }
 
-export async function getTimetable() {
-  return apiRequest("/api/admin/timetable");
+export async function getTimetable(): Promise<any> {
+  return apiRequest<any>("/api/admin/timetable");
 }
 
 export async function createTimetable(data: any) {
@@ -515,8 +533,28 @@ export async function createTimetable(data: any) {
   });
 }
 
-export async function getAnalytics() {
-  return apiRequest("/api/admin/analytics");
+export interface Analytics {
+  overview: {
+    totalSchools: number;
+    totalCampuses: number;
+    totalClasses: number;
+    totalSections: number;
+    totalStudents: number;
+    totalTeachers: number;
+    averageGrade: string;
+    attendanceRate: string;
+  };
+  classStats: Array<{
+    className: string;
+    level: number;
+    sections: number;
+    students: number;
+    averageGrade: string;
+  }>;
+}
+
+export async function getAnalytics(): Promise<Analytics> {
+  return apiRequest<Analytics>("/api/admin/analytics");
 }
 
 export async function getInsights(type?: string) {
@@ -531,14 +569,48 @@ export async function generateInsights(data: { type?: string }) {
   });
 }
 
-export async function getWarnings() {
-  return apiRequest("/api/admin/warnings");
+export interface GetWarningsResponse {
+  atRiskStudents: Array<{
+    _id: string;
+    name: string;
+    email: string;
+    className: string;
+    section: string;
+    averageGrade: string;
+    attendancePercentage: string;
+  }>;
+  aiInsights: Array<{
+    _id: string;
+    title: string;
+    description: string;
+    severity: string;
+    student?: {
+      user?: {
+        name: string;
+      };
+    };
+    createdAt: string;
+  }>;
 }
 
-export async function searchUsers(email: string, role?: string) {
+export async function getWarnings(): Promise<GetWarningsResponse> {
+  return apiRequest<GetWarningsResponse>("/api/admin/warnings");
+}
+
+export interface SearchUsersResponse {
+  users: Array<{
+    _id: string;
+    email: string;
+    name: string;
+    role: string;
+    phone?: string;
+  }>;
+}
+
+export async function searchUsers(email: string, role?: string): Promise<SearchUsersResponse> {
   const params = new URLSearchParams({ email });
   if (role) params.append("role", role);
-  return apiRequest(`/api/admin/users/search?${params}`);
+  return apiRequest<SearchUsersResponse>(`/api/admin/users/search?${params}`);
 }
 
 export async function getTeacherAttendanceAdmin(date?: string, status?: string) {
@@ -546,13 +618,13 @@ export async function getTeacherAttendanceAdmin(date?: string, status?: string) 
   if (date) params.append("date", date);
   if (status) params.append("status", status);
   const query = params.toString() ? `?${params}` : "";
-  return apiRequest(`/api/admin/teacher-attendance${query}`);
+  return apiRequest<any[]>(`/api/admin/teacher-attendance${query}`);
 }
 
 // ============ Principal ============
 
-export async function getPrincipalTeachers() {
-  return apiRequest("/api/principal/teachers");
+export async function getPrincipalTeachers(): Promise<any[]> {
+  return apiRequest<any[]>("/api/principal/teachers");
 }
 
 export async function createPrincipalTeacher(data: any) {
@@ -576,8 +648,8 @@ export async function createTeacher(data: any) {
   });
 }
 
-export async function getPrincipalTimetable() {
-  return apiRequest("/api/principal/timetable");
+export async function getPrincipalTimetable(): Promise<{ junior?: any; senior?: any }> {
+  return apiRequest<{ junior?: any; senior?: any }>("/api/principal/timetable");
 }
 
 export async function createPrincipalTimetable(data: any) {
@@ -599,7 +671,7 @@ export async function generateHomework(data: {
   topic: string;
   difficulty: string;
   count: number;
-}) {
+}): Promise<any> {
   return apiRequest("/api/ai/homework", {
     method: "POST",
     body: JSON.stringify(data),
@@ -612,7 +684,7 @@ export async function generatePaper(data: {
   examType: string;
   topics: string[];
   totalMarks?: number;
-}) {
+}): Promise<any> {
   return apiRequest("/api/ai/generate-paper", {
     method: "POST",
     body: JSON.stringify(data),
@@ -624,7 +696,7 @@ export async function gradeAnswer(data: {
   correctAnswer: string;
   question: string;
   maxMarks: number;
-}) {
+}): Promise<any> {
   return apiRequest("/api/ai/grade", {
     method: "POST",
     body: JSON.stringify(data),
@@ -635,7 +707,7 @@ export async function predictPerformance(data: {
   pastGrades: any[];
   attendance: any;
   syllabusProgress: any;
-}) {
+}): Promise<any> {
   return apiRequest("/api/ai/forecast", {
     method: "POST",
     body: JSON.stringify(data),
@@ -645,7 +717,7 @@ export async function predictPerformance(data: {
 export async function generateInsightsAI(data: {
   type: string;
   data: any;
-}) {
+}): Promise<any> {
   return apiRequest("/api/ai/insights", {
     method: "POST",
     body: JSON.stringify(data),
@@ -654,8 +726,8 @@ export async function generateInsightsAI(data: {
 
 // ============ Papers ============
 
-export async function getPapers() {
-  return apiRequest("/api/papers");
+export async function getPapers(): Promise<any[]> {
+  return apiRequest<any[]>("/api/papers");
 }
 
 export async function createPaper(data: FormData) {
@@ -664,18 +736,18 @@ export async function createPaper(data: FormData) {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  
+
   const response = await fetch(`${FASTAPI_URL}/api/papers`, {
     method: "POST",
     headers,
     body: data,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || error.message || "Failed to create paper");
   }
-  
+
   return response.json();
 }
 
@@ -685,23 +757,23 @@ export async function downloadPaper(paperId: string) {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  
+
   const response = await fetch(`${FASTAPI_URL}/api/papers/${paperId}/download`, {
     headers,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || error.message || "Failed to download paper");
   }
-  
+
   return response;
 }
 
 // ============ General ============
 
-export async function getGrades() {
-  return apiRequest("/api/grades");
+export async function getGrades(): Promise<any[]> {
+  return apiRequest<any[]>("/api/grades");
 }
 
 export async function createGrade(data: any) {
@@ -711,8 +783,8 @@ export async function createGrade(data: any) {
   });
 }
 
-export async function getHomework() {
-  return apiRequest("/api/homework");
+export async function getHomework(): Promise<any[]> {
+  return apiRequest<any[]>("/api/homework");
 }
 
 export async function createHomework(data: any) {
@@ -722,7 +794,7 @@ export async function createHomework(data: any) {
   });
 }
 
-export async function getAttendance(classId?: string) {
+export async function getAttendance(classId?: string): Promise<any[]> {
   const params = classId ? `?classId=${classId}` : "";
-  return apiRequest(`/api/attendance${params}`);
+  return apiRequest<any[]>(`/api/attendance${params}`);
 }
