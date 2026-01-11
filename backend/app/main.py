@@ -27,6 +27,13 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     logger.info("Starting FastAPI application...")
     logger.info(f"Face tolerance: {settings.FACE_TOLERANCE}")
+    
+    # Log environment status (Masked)
+    logger.info(f"SUPABASE_URL loaded: {bool(settings.SUPABASE_URL)}")
+    logger.info(f"SUPABASE_KEY loaded: {bool(settings.SUPABASE_KEY)}")
+    if settings.SUPABASE_URL:
+        logger.info(f"Supabase connection target: {settings.SUPABASE_URL.split('.')[0]}...")
+        
     logger.info(f"CORS origins: {settings.cors_origins_list}")
     yield
     logger.info("Shutting down FastAPI application...")
