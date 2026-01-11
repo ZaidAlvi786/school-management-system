@@ -9,9 +9,10 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings"""
     
-    # Supabase - Relaxed for debugging (allows startup without env vars)
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY")
+    # Supabase - REQUIRED fields (Fail Fast)
+    # Pydantic automatically reads these from environment variables
+    SUPABASE_URL: str
+    SUPABASE_KEY: str
     
     # Face Recognition
     FACE_TOLERANCE: float = 0.6
@@ -27,8 +28,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # Auth
-    NEXTAUTH_SECRET: str = os.getenv("NEXTAUTH_SECRET")
-    JWT_SECRET: str = os.getenv("JWT_SECRET")
+    NEXTAUTH_SECRET: str
+    JWT_SECRET: str
     
     @property
     def cors_origins_list(self) -> List[str]:
