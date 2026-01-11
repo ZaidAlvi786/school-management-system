@@ -4,7 +4,8 @@ Face registration endpoints
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, Optional
+from datetime import datetime
 import logging
 
 from app.services.face_recognition_service import FaceRecognitionService
@@ -28,6 +29,55 @@ class FaceRegisterResponse(BaseModel):
     """Response model for face registration"""
     success: bool
     message: str
+
+
+class FaceStatusResponse(BaseModel):
+    """Response model for face status"""
+    is_registered: bool
+    last_updated: Optional[datetime] = None
+    message: Optional[str] = None
+
+
+@router.get("/status", response_model=FaceStatusResponse)
+async def get_face_status(user_id: str):
+    """
+    Check if a user has a registered face
+    """
+    try:
+        supabase = get_supabase()
+        
+        result = supabase.table("face_encodings").select(
+            "updated_at, created_at"
+        ).eq("user_id", user_id).limit(1).execute()
+        
+        if result.data and len(result.data) > 0:
+            record = result.data[0]
+            # specific preference to updated_at, fallback to created_at
+            timestamp_str = record.get("updated_at") or record.get("created_at")
+            last_updated = None
+            if timestamp_str:
+                try:
+                    last_updated = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                except ValueError:
+                     pass
+
+            return FaceStatusResponse(
+                is_registered=True,
+                last_updated=last_updated,
+                message="User has a registered face"
+            )
+            
+        return FaceStatusResponse(
+            is_registered=False,
+            message="User does not have a registered face"
+        )
+            
+    except Exception as e:
+        logger.error(f"Error checking face status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
 @router.post("/register", response_model=FaceRegisterResponse)
