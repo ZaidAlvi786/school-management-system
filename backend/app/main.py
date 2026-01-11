@@ -31,6 +31,12 @@ async def lifespan(app: FastAPI):
     # Log environment status (Masked)
     logger.info(f"SUPABASE_URL loaded: {bool(settings.SUPABASE_URL)}")
     logger.info(f"SUPABASE_KEY loaded: {bool(settings.SUPABASE_KEY)}")
+    
+    # DEBUG: Log all env keys to find typos
+    import os
+    env_keys = list(os.environ.keys())
+    logger.info(f"Available Environment Keys: {env_keys}")
+    
     if settings.SUPABASE_URL:
         logger.info(f"Supabase connection target: {settings.SUPABASE_URL.split('.')[0]}...")
         
