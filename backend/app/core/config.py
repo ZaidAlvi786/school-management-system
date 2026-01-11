@@ -9,9 +9,9 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings"""
     
-    # Supabase - REQUIRED fields (Fail Fast)
-    SUPABASE_URL: str
-    SUPABASE_KEY: str
+    # Supabase - Relaxed for debugging (allows startup without env vars)
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
     
     # Face Recognition
     FACE_TOLERANCE: float = 0.6
