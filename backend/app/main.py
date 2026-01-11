@@ -81,10 +81,16 @@ async def root():
 @app.get("/health")
 async def health():
     """Detailed health check"""
+    from app.core.config import settings
     return {
         "status": "healthy",
-        "face_recognition": "ready",
-        "database": "connected"
+        "env_check": {
+            "SUPABASE_URL_SET": bool(settings.SUPABASE_URL and settings.SUPABASE_URL != "your_supabase_url_here"),
+            "SUPABASE_KEY_SET": bool(settings.SUPABASE_KEY and settings.SUPABASE_KEY != "your_supabase_key_here"),
+            "CORS_ORIGINS": settings.cors_origins_list,
+            "HOST": settings.HOST
+        },
+        "face_recognition": "ready"
     }
 
 
