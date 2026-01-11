@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Calendar, Clock, UserCheck, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getTeacherAttendanceAdmin } from "@/lib/fastapi-client";
 
 interface TeacherAttendance {
   id: string;
@@ -64,30 +65,22 @@ export default function AdminTeacherAttendancePage() {
   const fetchAttendance = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({
-        date: selectedDate,
-        ...(filterStatus !== "all" && { status: filterStatus }),
+      const data = await getTeacherAttendanceAdmin(selectedDate, filterStatus === "all" ? undefined : filterStatus);
+      setAttendance(data || []);
+
+      // Calculate stats
+      const total = data?.length || 0;
+      const present = data?.filter((a: TeacherAttendance) => a.status === "present" || a.status === "late").length || 0;
+      const absent = data?.filter((a: TeacherAttendance) => a.status === "absent").length || 0;
+      const late = data?.filter((a: TeacherAttendance) => a.is_late === true).length || 0;
+
+      setStats({
+        total,
+        present,
+        absent,
+        late,
+        lateCount: late,
       });
-      
-      const response = await fetch(`/api/admin/teacher-attendance?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAttendance(data.attendance || []);
-        
-        // Calculate stats
-        const total = data.attendance?.length || 0;
-        const present = data.attendance?.filter((a: TeacherAttendance) => a.status === "present" || a.status === "late").length || 0;
-        const absent = data.attendance?.filter((a: TeacherAttendance) => a.status === "absent").length || 0;
-        const late = data.attendance?.filter((a: TeacherAttendance) => a.is_late === true).length || 0;
-        
-        setStats({
-          total,
-          present,
-          absent,
-          late,
-          lateCount: late,
-        });
-      }
     } catch (error) {
       console.error("Failed to fetch attendance:", error);
       toast({
@@ -228,12 +221,11 @@ export default function AdminTeacherAttendancePage() {
                           )}
                         </div>
                       </div>
-                      <Badge className={`${
-                        record.status === 'present' ? 'bg-green-500' :
+                      <Badge className={`${record.status === 'present' ? 'bg-green-500' :
                         record.status === 'late' ? 'bg-yellow-500' :
-                        record.status === 'absent' ? 'bg-red-500' :
-                        'bg-gray-500'
-                      } text-white text-lg px-4 py-2`}>
+                          record.status === 'absent' ? 'bg-red-500' :
+                            'bg-gray-500'
+                        } text-white text-lg px-4 py-2`}>
                         {record.status}
                       </Badge>
                     </div>
