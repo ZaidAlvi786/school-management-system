@@ -27,7 +27,7 @@ async def get_grades(
         supabase = get_supabase()
         
         query = supabase.table("grades").select(
-            "*, student:students(roll_number), subject:subjects(name), teacher:users(name)"
+            "*, student:students(roll_number), subject:subjects(name), teacher:users!grades_teacher_id_fkey(name)"
         )
         
         if studentId:
@@ -205,7 +205,7 @@ async def get_attendance(
         supabase = get_supabase()
         
         query = supabase.table("attendance").select(
-            "*, student:students(roll_number, user:users(name)), marked_by:users(name)"
+            "*, student:students(roll_number, user:users(name)), marked_by:users!attendance_marked_by_id_fkey(name)"
         )
         
         if date:
