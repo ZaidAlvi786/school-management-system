@@ -93,7 +93,7 @@ async def get_student_grades(
             studentId = student_result.data["id"]
         
         query = supabase.table("grades").select(
-            "*, student:students(roll_number), subject:subjects(name), teacher:users(name)"
+            "*, student:students(roll_number), subject:subjects(name), teacher:users!grades_teacher_id_fkey(name)"
         ).eq("student_id", studentId)
         
         if subjectId:
@@ -137,7 +137,7 @@ async def get_student_attendance(
             studentId = student_result.data["id"]
         
         query = supabase.table("attendance").select(
-            "*, student:students(roll_number, user:users(name)), marked_by:users(name)"
+            "*, student:students(roll_number, user:users(name)), marked_by:users!attendance_marked_by_id_fkey(name)"
         ).eq("student_id", studentId)
         
         if date:
