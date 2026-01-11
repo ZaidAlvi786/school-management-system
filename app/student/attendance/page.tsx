@@ -84,13 +84,13 @@ export default function StudentAttendancePage() {
       const { getStudentAttendance } = await import("@/lib/fastapi-client");
       const data = await getStudentAttendance();
       setAttendance(data);
-      
+
       // Calculate stats
       const presentCount = data.filter((a: Attendance) => a.status === "present" || a.status === "excused").length;
       const absentCount = data.filter((a: Attendance) => a.status === "absent").length;
       const total = data.length;
       const percentage = total > 0 ? (presentCount / total) * 100 : 0;
-      
+
       setStats({
         presentDays: presentCount,
         absentDays: absentCount,
@@ -178,14 +178,14 @@ export default function StudentAttendancePage() {
                     Mark Today&apos;s Attendance
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {isTodayMarked 
+                    {isTodayMarked
                       ? "Your attendance for today has already been marked."
-                      : (hasRegisteredFace === false || hasRegisteredFace === null) && (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)
-                      ? "Please register your face or fingerprint first to mark attendance."
-                      : "Choose a method below to mark your attendance."}
+                      : (hasRegisteredFace === false || hasRegisteredFace === null)
+                        ? "Please register your face first to mark attendance."
+                        : "Choose a method below to mark your attendance."}
                   </p>
                 </div>
-                
+
                 {/* Registration Buttons */}
                 {(hasRegisteredFace === false || hasRegisteredFace === null) && (
                   <div className="flex flex-col sm:flex-row gap-3">
@@ -331,11 +331,11 @@ export default function StudentAttendancePage() {
                 >
                   {/* Animated background gradient */}
                   <div className={`absolute inset-0 ${getStatusColor(record.status)} opacity-0 group-hover:opacity-5 transition-opacity duration-500`}></div>
-                  
+
                   <CardContent className="p-4 md:p-6 relative">
                     {/* Decorative elements */}
                     <div className={`absolute top-4 right-4 w-20 h-20 ${getStatusColor(record.status)} opacity-5 rounded-full blur-2xl group-hover:opacity-10 transition-opacity duration-300`}></div>
-                    
+
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
                       <div className="flex items-center gap-3 md:gap-4 flex-1">
                         <div className={`p-3 md:p-4 ${getStatusColor(record.status)} rounded-xl shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
