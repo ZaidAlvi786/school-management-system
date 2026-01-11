@@ -14,7 +14,13 @@ class AttendanceService:
     """Service for attendance operations"""
     
     def __init__(self):
-        self.supabase = get_supabase()
+        self._supabase = None
+
+    @property
+    def supabase(self):
+        if self._supabase is None:
+            self._supabase = get_supabase()
+        return self._supabase
     
     def check_student_attendance(
         self, 
