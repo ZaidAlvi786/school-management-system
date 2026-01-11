@@ -9,14 +9,14 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings"""
     
-    # Supabase
-    SUPABASE_URL: str = ""
-    SUPABASE_KEY: str = ""
+    # Supabase - REQUIRED fields (Fail Fast)
+    SUPABASE_URL: str
+    SUPABASE_KEY: str
     
     # Face Recognition
     FACE_TOLERANCE: float = 0.6
     
-    # CORS - accepts comma-separated string or JSON list
+    # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
     
     # Server
