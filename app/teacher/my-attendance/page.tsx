@@ -156,8 +156,8 @@ export default function TeacherMyAttendancePage() {
                       ? todayAttendance?.is_late
                         ? `Your attendance is marked. You were ${todayAttendance.late_minutes} minutes late.`
                         : "Your attendance for today has already been marked."
-                      : (hasRegisteredFace === false || hasRegisteredFace === null) && (hasRegisteredFingerprint === false || hasRegisteredFingerprint === null)
-                        ? "Please register your face or fingerprint first to mark attendance."
+                      : (hasRegisteredFace === false || hasRegisteredFace === null)
+                        ? "Please register your face first to mark attendance."
                         : "Choose a method below to mark your attendance."}
                   </p>
                 </div>
@@ -310,9 +310,9 @@ export default function TeacherMyAttendancePage() {
                         </div>
                       </div>
                       <Badge className={`${record.status === 'present' ? 'bg-green-500' :
-                          record.status === 'late' ? 'bg-yellow-500' :
-                            record.status === 'absent' ? 'bg-red-500' :
-                              'bg-gray-500'
+                        record.status === 'late' ? 'bg-yellow-500' :
+                          record.status === 'absent' ? 'bg-red-500' :
+                            'bg-gray-500'
                         } text-white`}>
                         {record.status}
                       </Badge>

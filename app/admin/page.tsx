@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -40,13 +40,7 @@ export default function AdminDashboard() {
     }
   }, [status, session]);
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchStats();
-    }
-  }, [status]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const { getCampuses, getPrincipals, getClasses, getTeachers } = await import("@/lib/fastapi-client");
       const [campuses, principals, classes, teachers] = await Promise.all([
@@ -67,7 +61,13 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchStats();
+    }
+  }, [status, fetchStats]);
 
   if (status === "loading" || loading) {
     return (

@@ -275,7 +275,7 @@ export default function TeacherFaceAttendanceDialog({
                   Retake
                 </Button>
                 <Button
-                  onClick={() => markAttendance()}
+                  onClick={() => markAttendanceFromImage()}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                   disabled={isProcessing}
                 >

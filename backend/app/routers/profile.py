@@ -2,7 +2,7 @@
 Profile management endpoints
 """
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, File, UploadFile
 from pydantic import BaseModel, Field
 from typing import Optional
 from app.core.auth import get_current_user, CurrentUser

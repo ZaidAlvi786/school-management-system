@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,14 @@ import LogoutButton from "@/components/logout-button";
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Trash2, Users } from "lucide-react";
+import type { Campus as CampusType, Section as SectionType } from "@/lib/types/database";
+import type { ClassWithRelations } from "@/lib/fastapi-client";
 
 interface Class {
   _id: string;
   name: string;
   level: number;
-  campus: {
+  campus?: {
     _id: string;
     name: string;
     school: string;
@@ -75,21 +77,47 @@ export default function ClassesPage() {
     }
   }, [status, session]);
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchData();
-    }
-  }, [status]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { getClasses, getCampuses } = await import("@/lib/fastapi-client");
       const [classesData, campusesData] = await Promise.all([
         getClasses(),
         getCampuses(),
       ]);
-      setClasses(Array.isArray(classesData) ? classesData : []);
-      setCampuses(Array.isArray(campusesData) ? campusesData : []);
+      
+      // Transform API response to component interface
+      const transformedClasses: Class[] = Array.isArray(classesData)
+        ? classesData.map((cls: ClassWithRelations) => ({
+            _id: cls.id,
+            name: cls.name,
+            level: cls.level,
+            campus: cls.campus
+              ? {
+                  _id: cls.campus.id,
+                  name: cls.campus.name,
+                  school: cls.campus.school_id,
+                }
+              : undefined,
+            sections: (cls.sections || []).map((section: SectionType) => ({
+              _id: section.id,
+              name: section.name,
+              capacity: section.capacity,
+              currentStrength: section.current_strength || 0,
+            })),
+          }))
+        : [];
+      
+      // Transform campuses
+      const transformedCampuses: Campus[] = Array.isArray(campusesData)
+        ? campusesData.map((campus: CampusType) => ({
+            _id: campus.id,
+            name: campus.name,
+            school: campus.school_id,
+          }))
+        : [];
+      
+      setClasses(transformedClasses);
+      setCampuses(transformedCampuses);
     } catch (error) {
       toast({
         title: "Error",
@@ -99,7 +127,13 @@ export default function ClassesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchData();
+    }
+  }, [status, fetchData]);
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     logger.info("Starting FastAPI application...")
     logger.info(f"Face tolerance: {settings.FACE_TOLERANCE}")
-    logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
+    logger.info(f"CORS origins: {settings.cors_origins_list}")
     yield
     logger.info("Shutting down FastAPI application...")
 
@@ -43,7 +43,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

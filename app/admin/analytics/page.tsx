@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -9,26 +9,7 @@ import LogoutButton from "@/components/logout-button";
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
 import { BarChart3, Users, GraduationCap, BookOpen, TrendingUp, School } from "lucide-react";
-
-interface Analytics {
-  overview: {
-    totalSchools: number;
-    totalCampuses: number;
-    totalClasses: number;
-    totalSections: number;
-    totalStudents: number;
-    totalTeachers: number;
-    averageGrade: string;
-    attendanceRate: string;
-  };
-  classStats: Array<{
-    className: string;
-    level: number;
-    sections: number;
-    students: number;
-    averageGrade: string;
-  }>;
-}
+import { Analytics } from "@/lib/fastapi-client";
 
 export default function AnalyticsPage() {
   const { data: session, status } = useSession();
@@ -45,16 +26,10 @@ export default function AnalyticsPage() {
     }
   }, [status, session]);
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchAnalytics();
-    }
-  }, [status]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       const { getAnalytics } = await import("@/lib/fastapi-client");
-      const data = await getAnalytics();
+      const data: Analytics = await getAnalytics();
       setAnalytics(data);
     } catch (error) {
       toast({
@@ -65,7 +40,13 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchAnalytics();
+    }
+  }, [status, fetchAnalytics]);
 
   if (status === "loading" || loading) {
     return (

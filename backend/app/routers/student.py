@@ -3,7 +3,7 @@ Student endpoints
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from app.core.auth import require_student, CurrentUser
 from app.core.database import get_supabase
@@ -17,13 +17,15 @@ router = APIRouter()
 
 class StudentInfoResponse(BaseModel):
     """Student info response"""
+    model_config = {"populate_by_name": True}
+    
     _id: str
     id: str
     rollNumber: str
     admissionNumber: str
     classId: str
     sectionId: str
-    class: Optional[dict] = None
+    class_: Optional[dict] = Field(None, alias="class")
     section: Optional[dict] = None
 
 
@@ -53,7 +55,7 @@ async def get_student_info(user: CurrentUser = Depends(require_student)):
             admissionNumber=student["admission_number"],
             classId=student["class_id"],
             sectionId=student["section_id"],
-            class=student.get("class"),
+            class_=student.get("class"),
             section=student.get("section")
         )
     

@@ -85,8 +85,23 @@ export default function TeachersPage() {
         getTeachers(),
         getClasses(),
       ]);
-      setTeachers(Array.isArray(teachersData) ? teachersData : []);
-      setClasses(Array.isArray(classesData) ? classesData : []);
+
+      const mappedTeachers = (Array.isArray(teachersData) ? teachersData : []).map((t: any) => ({
+        _id: t.id || t._id,
+        user: t.user || { name: "", email: "" },
+        employeeId: t.employee_id || t.employeeId,
+        school: t.school || { name: "" },
+        assignedSubjects: t.assigned_subjects || t.assignedSubjects || [],
+      }));
+
+      const mappedClasses = (Array.isArray(classesData) ? classesData : []).map((c: any) => ({
+        _id: c.id || c._id,
+        name: c.name,
+        level: c.level,
+      }));
+
+      setTeachers(mappedTeachers);
+      setClasses(mappedClasses);
     } catch (error) {
       toast({
         title: "Error",
@@ -167,8 +182,8 @@ export default function TeachersPage() {
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Assign Teachers to Subjects</h2>
             <p className="text-gray-600">
-              {session?.user?.role === "admin" 
-                ? "View teacher assignments and subject allocations (Read-only)" 
+              {session?.user?.role === "admin"
+                ? "View teacher assignments and subject allocations (Read-only)"
                 : "Manage teacher assignments and subject allocations"}
             </p>
           </div>
@@ -180,77 +195,77 @@ export default function TeachersPage() {
                   Assign Teacher
                 </Button>
               </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Assign Teacher to Subject</DialogTitle>
-                <DialogDescription>Assign a teacher to teach a subject in a class</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleAssign} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teacherId">Teacher</Label>
-                  <Select
-                    value={formData.teacherId}
-                    onValueChange={(value) => setFormData({ ...formData, teacherId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select teacher" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teachers.map((teacher) => (
-                        <SelectItem key={teacher._id} value={teacher._id}>
-                          {teacher.user.name} ({teacher.user.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="classId">Class</Label>
-                  <Select
-                    value={formData.classId}
-                    onValueChange={(value) => setFormData({ ...formData, classId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls._id} value={cls._id}>
-                          {cls.name} (Level {cls.level})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subjectName">Subject Name</Label>
-                  <Input
-                    id="subjectName"
-                    value={formData.subjectName}
-                    onChange={(e) => setFormData({ ...formData, subjectName: e.target.value })}
-                    placeholder="Mathematics"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subjectCode">Subject Code</Label>
-                  <Input
-                    id="subjectCode"
-                    value={formData.subjectCode}
-                    onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
-                    placeholder="MATH-9"
-                    required
-                  />
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">Assign</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign Teacher to Subject</DialogTitle>
+                  <DialogDescription>Assign a teacher to teach a subject in a class</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAssign} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="teacherId">Teacher</Label>
+                    <Select
+                      value={formData.teacherId}
+                      onValueChange={(value) => setFormData({ ...formData, teacherId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select teacher" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teachers.map((teacher) => (
+                          <SelectItem key={teacher._id} value={teacher._id}>
+                            {teacher.user.name} ({teacher.user.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="classId">Class</Label>
+                    <Select
+                      value={formData.classId}
+                      onValueChange={(value) => setFormData({ ...formData, classId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select class" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((cls) => (
+                          <SelectItem key={cls._id} value={cls._id}>
+                            {cls.name} (Level {cls.level})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subjectName">Subject Name</Label>
+                    <Input
+                      id="subjectName"
+                      value={formData.subjectName}
+                      onChange={(e) => setFormData({ ...formData, subjectName: e.target.value })}
+                      placeholder="Mathematics"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subjectCode">Subject Code</Label>
+                    <Input
+                      id="subjectCode"
+                      value={formData.subjectCode}
+                      onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
+                      placeholder="MATH-9"
+                      required
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Assign</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
 
