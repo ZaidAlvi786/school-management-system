@@ -3,7 +3,7 @@ General endpoints (grades, homework, attendance, papers)
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from app.core.auth import get_current_user, require_teacher, CurrentUser
 from app.core.database import get_supabase
@@ -131,10 +131,12 @@ async def get_homework(
 
 
 class CreateHomeworkRequest(BaseModel):
+    model_config = {"populate_by_name": True}
+    
     title: str
     description: Optional[str] = None
     subject: str
-    class: str
+    class_: str = Field(..., alias="class")
     section: Optional[str] = None
     dueDate: str
     aiGenerated: Optional[bool] = False
@@ -164,7 +166,7 @@ async def create_homework(
             "title": request.title,
             "description": request.description,
             "subject_id": request.subject,
-            "class_id": request.class,
+            "class_id": request.class_,
             "section_id": request.section,
             "due_date": request.dueDate,
             "assigned_by_id": user.id,
@@ -216,16 +218,31 @@ async def get_attendance(
                 "user_id", user.id
             ).maybe_single().execute()
             
+            # Safe check for teacher_result
+            if not teacher_result:
+                logger.warning("Teacher query returned None")
+                return []
+
             if teacher_result.data:
                 class_result = supabase.table("classes").select("id").eq(
                     "class_incharge_id", teacher_result.data["id"]
                 ).maybe_single().execute()
                 
+                # Safe check for class_result
+                if not class_result:
+                     logger.warning("Class query returned None")
+                     return []
+
                 if class_result.data:
                     students_result = supabase.table("students").select("id").eq(
                         "class_id", class_result.data["id"]
                     ).execute()
                     
+                    # Safe check for students_result
+                    if not students_result:
+                        logger.warning("Students query returned None")
+                        return []
+
                     if students_result.data:
                         student_ids = [s["id"] for s in students_result.data]
                         query = query.in_("student_id", student_ids)
@@ -243,6 +260,12 @@ async def get_attendance(
                 return []
         
         result = query.order("date", desc=True).execute()
+        
+        logger.info(f"Attendance query result object: {result}")
+        if result is None:
+             logger.error("CRITICAL: Supabase execute() returned None")
+             return []
+
         return result.data or []
     
     except Exception as e:
