@@ -44,11 +44,11 @@ class AttendanceService:
                 "user_id", student_id
             ).eq("role", "student").eq("class_id", class_id).eq(
                 "date", attendance_date.isoformat()
-            ).maybe_single().execute()
+            ).limit(1).execute()
             
-            if result.data:
+            if result.data and len(result.data) > 0:
                 logger.info(f"Student {student_id} already marked attendance for class {class_id} on {attendance_date}")
-                return result.data
+                return result.data[0]
             
             return None
         
@@ -74,11 +74,11 @@ class AttendanceService:
         try:
             result = self.supabase.table("attendance").select("*").eq(
                 "user_id", teacher_id
-            ).eq("role", "teacher").eq("date", attendance_date.isoformat()).maybe_single().execute()
+            ).eq("role", "teacher").eq("date", attendance_date.isoformat()).limit(1).execute()
             
-            if result.data:
+            if result.data and len(result.data) > 0:
                 logger.info(f"Teacher {teacher_id} already marked attendance on {attendance_date}")
-                return result.data
+                return result.data[0]
             
             return None
         
@@ -173,21 +173,21 @@ class AttendanceService:
             # Get teacher's school and class to determine timetable
             teacher_result = self.supabase.table("teachers").select(
                 "id, school_id"
-            ).eq("user_id", teacher_id).maybe_single().execute()
+            ).eq("user_id", teacher_id).limit(1).execute()
             
-            if not teacher_result.data:
+            if not teacher_result.data or len(teacher_result.data) == 0:
                 raise ValueError("Teacher not found")
             
-            teacher_record = teacher_result.data
+            teacher_record = teacher_result.data[0]
             school_id = teacher_record["school_id"]
             
             # Get teacher's class level
             class_result = self.supabase.table("classes").select(
                 "level"
-            ).eq("class_incharge_id", teacher_record["id"]).maybe_single().execute()
+            ).eq("class_incharge_id", teacher_record["id"]).limit(1).execute()
             
             level_type = "senior"  # default
-            if class_result.data and class_result.data["level"] <= 5:
+            if class_result.data and len(class_result.data) > 0 and class_result.data[0]["level"] <= 5:
                 level_type = "junior"
             
             # Get timetable
@@ -195,14 +195,14 @@ class AttendanceService:
                 "start_time, late_threshold_minutes"
             ).eq("school_id", school_id).eq("level_type", level_type).eq(
                 "is_active", True
-            ).maybe_single().execute()
+            ).limit(1).execute()
             
             status = "present"
             is_late = False
             late_minutes = 0
             
-            if timetable_result.data:
-                timetable = timetable_result.data
+            if timetable_result.data and len(timetable_result.data) > 0:
+                timetable = timetable_result.data[0]
                 start_time_str = timetable["start_time"]
                 late_threshold = timetable.get("late_threshold_minutes", 15)
                 
