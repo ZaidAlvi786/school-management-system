@@ -1,0 +1,41 @@
+# Google Cloud Build configuration for FastAPI backend
+# This file configures the build process for Cloud Run or Cloud Build
+
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/school-management-backend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/school-management-backend:latest'
+      - '-f'
+      - 'backend/Dockerfile'
+      - 'backend'
+    timeout: '1200s'  # 20 minutes for building dependencies
+
+  # Push the image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/school-management-backend:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/school-management-backend:latest'
+
+# Images to be pushed to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/school-management-backend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/school-management-backend:latest'
+
+# Build options
+options:
+  machineType: 'E2_HIGHCPU_8'  # Use high CPU for faster builds
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
+
+# Timeout for the entire build
+timeout: '1800s'  # 30 minutes
