@@ -24,7 +24,7 @@ class AttendanceService:
     
     def check_student_attendance(
         self, 
-        student_id: str, 
+        student_user_id: str, 
         class_id: str, 
         attendance_date: date
     ) -> Optional[Dict[str, Any]]:
@@ -32,7 +32,7 @@ class AttendanceService:
         Check if student attendance already marked for a specific class and date
         
         Args:
-            student_id: Student user ID
+            student_user_id: Student user ID
             class_id: Class ID
             attendance_date: Date to check
             
@@ -41,13 +41,13 @@ class AttendanceService:
         """
         try:
             result = self.supabase.table("attendance").select("*").eq(
-                "user_id", student_id
+                "user_id", student_user_id
             ).eq("role", "student").eq("class_id", class_id).eq(
                 "date", attendance_date.isoformat()
             ).limit(1).execute()
             
             if result.data and len(result.data) > 0:
-                logger.info(f"Student {student_id} already marked attendance for class {class_id} on {attendance_date}")
+                logger.info(f"Student {student_user_id} already marked attendance for class {class_id} on {attendance_date}")
                 return result.data[0]
             
             return None
@@ -88,17 +88,19 @@ class AttendanceService:
     
     def mark_student_attendance(
         self,
-        student_id: str,
+        student_user_id: str,
         class_id: str,
-        device_type: str = "web"
+        device_type: str = "web",
+        student_db_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Mark student attendance
         
         Args:
-            student_id: Student user ID
+            student_user_id: Student user ID
             class_id: Class ID
             device_type: Device type (web/mobile)
+            student_db_id: Optional student database ID (for backwards compatibility)
             
         Returns:
             Attendance record
@@ -108,7 +110,7 @@ class AttendanceService:
             now = datetime.now()
             
             # Check if already marked
-            existing = self.check_student_attendance(student_id, class_id, today)
+            existing = self.check_student_attendance(student_user_id, class_id, today)
             if existing:
                 return {
                     "success": False,
@@ -116,9 +118,18 @@ class AttendanceService:
                     "attendance": existing
                 }
             
+            # Get student database ID if not provided
+            if not student_db_id:
+                student_result = self.supabase.table("students").select("id").eq(
+                    "user_id", student_user_id
+                ).maybe_single().execute()
+                
+                if student_result.data:
+                    student_db_id = student_result.data["id"]
+            
             # Insert attendance record
             attendance_data = {
-                "user_id": student_id,
+                "user_id": student_user_id,
                 "role": "student",
                 "class_id": class_id,
                 "date": today.isoformat(),
@@ -127,10 +138,14 @@ class AttendanceService:
                 "device_type": device_type
             }
             
+            # Add student_id if available (for backwards compatibility)
+            if student_db_id:
+                attendance_data["student_id"] = student_db_id
+            
             result = self.supabase.table("attendance").insert(attendance_data).execute()
             
             if result.data:
-                logger.info(f"Student {student_id} attendance marked for class {class_id}")
+                logger.info(f"Student {student_user_id} attendance marked for class {class_id}")
                 return {
                     "success": True,
                     "attendance": result.data[0]
@@ -218,6 +233,15 @@ class AttendanceService:
                     is_late = True
                     late_minutes = int(diff_minutes)
             
+            # Get teacher database ID (optional, for backwards compatibility)
+            teacher_db_id = None
+            teacher_result = self.supabase.table("teachers").select("id").eq(
+                "user_id", teacher_id
+            ).maybe_single().execute()
+            
+            if teacher_result.data:
+                teacher_db_id = teacher_result.data["id"]
+            
             # Insert attendance record
             attendance_data = {
                 "user_id": teacher_id,
@@ -227,8 +251,14 @@ class AttendanceService:
                 "status": status,
                 "device_type": device_type,
                 "is_late": is_late,
-                "late_minutes": late_minutes
+                "late_minutes": late_minutes,
+                # Ensure student_id is explicitly NULL for teachers
+                "student_id": None
             }
+            
+            # Optional: Add teacher_id if you have a teachers table
+            # if teacher_db_id:
+            #     attendance_data["teacher_id"] = teacher_db_id
             
             result = self.supabase.table("attendance").insert(attendance_data).execute()
             
