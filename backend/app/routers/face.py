@@ -112,9 +112,16 @@ async def register_face(request: FaceRegisterRequest):
                 detail=f"User role mismatch. Expected {request.role}, got {user['role']}"
             )
         
-        # Generate face encoding
+        # Generate face encoding with quality validation
         try:
-            encoding = face_service.generate_encoding(request.base64_image)
+            encoding, metadata = face_service.generate_encoding(request.base64_image)
+            # Log quality info for debugging
+            quality = metadata.get("quality", {})
+            logger.info(
+                f"Face encoding generated for user {request.user_id}: "
+                f"quality_score={quality.get('quality_score', 0):.1f}, "
+                f"face_size={metadata.get('face_size', 0)}px"
+            )
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -148,7 +155,7 @@ async def register_face(request: FaceRegisterRequest):
             for existing_encoding_data in all_encodings_result.data:
                 try:
                     stored_encoding = existing_encoding_data["encoding_vector"]
-                    match, similarity = face_service.compare_faces(stored_encoding, encoding)
+                    match, similarity, distance = face_service.compare_faces(stored_encoding, encoding)
                     
                     if match:
                         raise HTTPException(
