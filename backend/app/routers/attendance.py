@@ -63,9 +63,17 @@ async def mark_attendance(request: AttendanceMarkRequest):
                 detail="class_id is required for students"
             )
         
-        # Generate face encoding from image
+        # Generate face encoding from image with quality validation
         try:
-            unknown_encoding = face_service.generate_encoding(request.base64_image)
+            unknown_encoding, metadata = face_service.generate_encoding(request.base64_image)
+            # Log quality info for debugging
+            quality = metadata.get("quality", {})
+            logger.info(
+                f"Face encoding generated for attendance: "
+                f"quality_score={quality.get('quality_score', 0):.1f}, "
+                f"face_size={metadata.get('face_size', 0)}px, "
+                f"warnings={quality.get('warnings', [])}"
+            )
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
