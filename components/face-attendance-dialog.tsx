@@ -260,15 +260,12 @@ export default function FaceAttendanceDialog({
       setError(null);
       setStatusMessage("Verifying face...");
 
-      if (!classId && session.user.role === "student") {
-        throw new Error("Class ID is required for students");
-      }
-
       // Mark attendance via FastAPI
+      // Note: class_id is optional for students - backend will auto-fetch from student record
       const result = await markAttendance(
         imgData,
         session.user.role as "student" | "teacher",
-        classId,
+        classId, // Optional - will be validated/fetched automatically by backend
         "web"
       );
 
