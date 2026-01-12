@@ -56,12 +56,8 @@ async def mark_attendance(request: AttendanceMarkRequest):
     try:
         supabase = get_supabase()
         
-        # Validate class_id for students
-        if request.role == "student" and not request.class_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="class_id is required for students"
-            )
+        # Note: class_id is optional for students - will be auto-fetched from student record
+        # If provided, it will be validated against student's actual class
         
         # Generate face encoding from image with quality validation
         try:
@@ -131,13 +127,7 @@ async def mark_attendance(request: AttendanceMarkRequest):
         
         # Mark attendance based on role
         if request.role == "student":
-            if not request.class_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="class_id is required for students"
-                )
-            
-            # Verify student belongs to the class
+            # Get student record to automatically get class_id
             student_result = supabase.table("students").select(
                 "id, class_id"
             ).eq("user_id", user_id).maybe_single().execute()
@@ -145,21 +135,33 @@ async def mark_attendance(request: AttendanceMarkRequest):
             if not student_result.data:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Student record not found"
+                    detail="Student record not found. Please contact administrator."
                 )
             
             student = student_result.data
-            if student["class_id"] != request.class_id:
+            class_id = student["class_id"]
+            student_id = student["id"]
+            
+            # If class_id provided in request, verify it matches student's class
+            if request.class_id:
+                if class_id != request.class_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Student does not belong to the specified class"
+                    )
+            
+            if not class_id:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Student does not belong to the specified class"
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Student is not assigned to a class. Please contact administrator."
                 )
             
-            # Mark student attendance
+            # Mark student attendance (class_id auto-fetched from student record)
             result = attendance_service.mark_student_attendance(
                 user_id,
-                request.class_id,
-                request.device_type
+                class_id,
+                request.device_type,
+                student_id  # Pass student_id for database
             )
             
             if result.get("already_marked"):
