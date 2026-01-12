@@ -13,7 +13,7 @@ steps:
       - '-f'
       - 'backend/Dockerfile'
       - 'backend'
-    timeout: '1200s'  # 20 minutes for building dependencies
+    timeout: '2400s'  # 40 minutes for building dependencies (face-recognition takes time)
 
   # Push the image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -38,4 +38,4 @@ options:
   substitution_option: 'ALLOW_LOOSE'
 
 # Timeout for the entire build
-timeout: '1800s'  # 30 minutes
+timeout: '3600s'  # 60 minutes (face-recognition compilation can take 30-40 mins)

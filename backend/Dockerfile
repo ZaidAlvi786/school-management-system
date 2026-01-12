@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
@@ -22,7 +22,8 @@ RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt .
 
 # Install Python dependencies
-# Using --no-cache-dir to reduce image size
+# Note: face-recognition and dlib may take 20-30 minutes to compile
+# Python 3.11 has better wheel support than 3.13
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
