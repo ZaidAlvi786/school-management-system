@@ -60,13 +60,16 @@ export default function StudentAttendancePage() {
   const fetchStudentInfo = async () => {
     try {
       const { getStudentInfo } = await import("@/lib/fastapi-client");
-      const data = await getStudentInfo();
-      if (data?.class?.id) {
-        setStudentClassId(data.class.id);
+      const data: any = await getStudentInfo();
+      // API returns classId (camelCase) directly, or class_ object
+      if (data?.classId) {
+        setStudentClassId(data.classId);
+      } else if (data?.class_?.id) {
+        setStudentClassId(data.class_.id);
       }
     } catch (error) {
       console.error("Failed to fetch student info:", error);
-      // Continue without class_id - backend will fetch it
+      // Continue without class_id - backend will fetch it automatically
     }
   };
 
