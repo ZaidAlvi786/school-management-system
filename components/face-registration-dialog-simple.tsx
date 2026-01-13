@@ -417,8 +417,9 @@ export default function FaceRegistrationDialog({
         throw new Error("User ID not found. Please log in again.");
       }
 
-      // Send base64 image to FastAPI backend
-      const result = await registerFace(session.user.id, userType, imgData);
+      // Send base64 image(s) to FastAPI backend
+      // Convert single image to array for API compatibility (backward compatibility)
+      const result = await registerFace(session.user.id, userType, [imgData], false, undefined);
 
       toast({
         title: "Success!",
