@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     
     # Face Recognition
-    FACE_TOLERANCE: float = 0.6
+    # Lower tolerance = stricter matching (fewer false positives)
+    # Recommended: 0.4 for production (was 0.6, too permissive)
+    FACE_TOLERANCE: float = 0.4
     
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
