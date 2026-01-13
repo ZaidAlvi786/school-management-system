@@ -4,7 +4,7 @@ Attendance marking endpoints
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 import logging
 
 from app.services.face_recognition_service import FaceRecognitionService
@@ -13,6 +13,15 @@ from app.core.database import get_supabase
 from app.core.config import settings
 from app.core.auth import get_current_user, CurrentUser
 
+# Import liveness service
+try:
+    from app.services.liveness_service import LivenessService
+    liveness_service = LivenessService()
+except ImportError:
+    # Fallback if liveness service not available
+    LivenessService = None
+    liveness_service = None
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -20,7 +29,6 @@ router = APIRouter()
 # Lower tolerance = more strict matching (fewer false positives)
 face_service = FaceRecognitionService(tolerance=min(settings.FACE_TOLERANCE, 0.4))
 attendance_service = AttendanceService()
-liveness_service = LivenessService()
 
 
 class AttendanceMarkRequest(BaseModel):
@@ -153,7 +161,7 @@ async def mark_attendance(
         
         # Optional: Verify liveness if provided
         liveness_passed = False
-        if request.liveness_verified and request.liveness_images:
+        if request.liveness_verified and request.liveness_images and liveness_service:
             try:
                 liveness_result = liveness_service.verify_liveness_from_base64(
                     challenge_type=request.challenge_type or 'combined',
