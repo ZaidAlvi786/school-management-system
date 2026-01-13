@@ -55,29 +55,72 @@ export default function FaceRegistrationDialogEnhanced({
   const TARGET_IMAGES = 8; // Capture 8 images for better accuracy
   const LIVENESS_FRAME_COUNT = 10; // Capture 10 frames for liveness detection
 
-  // Load MediaPipe
+  // Load MediaPipe from CDN (dynamic import to avoid build errors)
   const loadMediaPipe = useCallback(async (): Promise<boolean> => {
     try {
       if (faceDetectorRef.current) return true;
       
-      const { FaceDetector, FilesetResolver } = await import("@mediapipe/tasks-vision");
-      
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      );
-      
-      faceDetectorRef.current = await FaceDetector.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/0.0.11/blaze_face_short_range.tflite`,
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        minDetectionConfidence: 0.7,
+      // Load MediaPipe from CDN using dynamic script injection
+      return new Promise((resolve) => {
+        if ((window as any).mediapipeFaceDetector) {
+          faceDetectorRef.current = (window as any).mediapipeFaceDetector;
+          resolve(true);
+          return;
+        }
+
+        setIsLoading(true);
+        setStatusMessage("Loading face detection model...");
+
+        const script = document.createElement("script");
+        script.type = "module";
+        script.textContent = `
+          import { FaceDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+          
+          (async function() {
+            try {
+              const vision = await FilesetResolver.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+              );
+              
+              const faceDetector = await FaceDetector.createFromOptions(vision, {
+                baseOptions: {
+                  modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/0.0.11/blaze_face_short_range.tflite',
+                  delegate: 'GPU',
+                },
+                runningMode: 'VIDEO',
+                minDetectionConfidence: 0.7,
+              });
+              
+              window.mediapipeFaceDetector = faceDetector;
+              window.mediapipeLoaded = true;
+              window.dispatchEvent(new CustomEvent('mediapipeLoaded'));
+            } catch (error) {
+              console.error('MediaPipe load error:', error);
+              window.mediapipeLoaded = false;
+              window.dispatchEvent(new CustomEvent('mediapipeLoaded'));
+            }
+          })();
+        `;
+        
+        const onLoaded = () => {
+          if ((window as any).mediapipeFaceDetector) {
+            faceDetectorRef.current = (window as any).mediapipeFaceDetector;
+            setIsLoading(false);
+            setStatusMessage("Face detector ready");
+            resolve(true);
+          } else {
+            setIsLoading(false);
+            setStatusMessage("Failed to load face detector");
+            resolve(false);
+          }
+        };
+        
+        window.addEventListener('mediapipeLoaded', onLoaded, { once: true });
+        document.head.appendChild(script);
       });
-      
-      return true;
     } catch (error) {
       console.error("Failed to load MediaPipe:", error);
+      setIsLoading(false);
       return false;
     }
   }, []);
