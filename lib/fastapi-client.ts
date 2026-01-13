@@ -64,7 +64,9 @@ async function apiRequest<T>(
 export interface FaceRegisterRequest {
   user_id: string;
   role: "student" | "teacher";
-  base64_image: string;
+  base64_images: string[]; // 1-10 images for better accuracy
+  liveness_verified?: boolean;
+  challenge_type?: "blink" | "head_left" | "head_right" | "combined";
 }
 
 export interface FaceRegisterResponse {
@@ -75,11 +77,19 @@ export interface FaceRegisterResponse {
 export async function registerFace(
   user_id: string,
   role: "student" | "teacher",
-  base64_image: string
+  base64_images: string[], // Array of 1-10 images
+  liveness_verified: boolean = false,
+  challenge_type?: "blink" | "head_left" | "head_right" | "combined"
 ): Promise<FaceRegisterResponse> {
   return apiRequest<FaceRegisterResponse>("/api/face/register", {
     method: "POST",
-    body: JSON.stringify({ user_id, role, base64_image }),
+    body: JSON.stringify({ 
+      user_id, 
+      role, 
+      base64_images, // Send array instead of single image
+      liveness_verified,
+      challenge_type
+    }),
   });
 }
 
@@ -105,11 +115,24 @@ export async function markAttendance(
   base64_image: string,
   role: "student" | "teacher",
   class_id?: string,
-  device_type: string = "web"
+  device_type: string = "web",
+  liveness_verified: boolean = false,
+  liveness_images?: string[],
+  challenge_type?: "blink" | "head_left" | "head_right" | "combined"
 ): Promise<AttendanceMarkResponse> {
+  const requestData: AttendanceMarkRequest = {
+    base64_image,
+    role,
+    class_id,
+    device_type,
+    liveness_verified,
+    liveness_images,
+    challenge_type,
+  };
+  
   return apiRequest<AttendanceMarkResponse>("/api/attendance/mark", {
     method: "POST",
-    body: JSON.stringify({ base64_image, role, class_id, device_type }),
+    body: JSON.stringify(requestData),
   });
 }
 
@@ -354,7 +377,11 @@ export async function getTeacherAttendance(): Promise<any[]> {
 }
 
 export async function getFaceStatus(): Promise<{ hasRegisteredFace: boolean }> {
-  return apiRequest<{ hasRegisteredFace: boolean }>("/api/face/status");
+  const response = await apiRequest<{ hasRegisteredFace?: boolean; is_registered?: boolean }>("/api/face/status");
+  // Map backend response (is_registered) to frontend format (hasRegisteredFace)
+  return {
+    hasRegisteredFace: response.hasRegisteredFace ?? response.is_registered ?? false
+  };
 }
 
 export async function markAttendanceManual(data: {
