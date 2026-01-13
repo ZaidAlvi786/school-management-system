@@ -9,7 +9,7 @@ import LoadingSpinner from "@/components/loading-spinner";
 import { Calendar, CheckCircle2, XCircle, TrendingUp, Clock, Sparkles, UserPlus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import FaceRegistrationDialog from "@/components/face-registration-dialog-simple";
+import FaceRegistrationDialogEnhanced from "@/components/face-registration-dialog-enhanced";
 import FaceAttendanceDialog from "@/components/face-attendance-dialog";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -402,7 +402,7 @@ export default function StudentAttendancePage() {
       </main>
 
       {/* Face Registration Dialog */}
-      <FaceRegistrationDialog
+      <FaceRegistrationDialogEnhanced
         open={showRegistrationDialog}
         onOpenChange={setShowRegistrationDialog}
         onSuccess={() => {
@@ -410,7 +410,7 @@ export default function StudentAttendancePage() {
           checkFaceRegistration();
           toast({
             title: "Success",
-            description: "Your face has been registered successfully!",
+            description: "Your face has been registered successfully with multiple images!",
           });
         }}
       />

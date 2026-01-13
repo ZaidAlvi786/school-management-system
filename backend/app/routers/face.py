@@ -2,27 +2,32 @@
 Face registration endpoints
 """
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from fastapi import APIRouter, HTTPException, status, Depends
+from pydantic import BaseModel, Field, field_serializer
+from typing import Literal, Optional, List
 from datetime import datetime
 import logging
 
 from app.services.face_recognition_service import FaceRecognitionService
+from app.services.liveness_service import LivenessService
 from app.core.database import get_supabase
 from app.core.config import settings
+from app.core.auth import get_current_user, CurrentUser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 face_service = FaceRecognitionService(tolerance=settings.FACE_TOLERANCE)
+liveness_service = LivenessService()
 
 
 class FaceRegisterRequest(BaseModel):
-    """Request model for face registration"""
+    """Request model for face registration - supports multiple images"""
     user_id: str = Field(..., description="User ID")
     role: Literal["student", "teacher"] = Field(..., description="User role")
-    base64_image: str = Field(..., description="Base64 encoded image with data URL prefix")
+    base64_images: List[str] = Field(..., min_items=1, max_items=10, description="Base64 encoded images (1-10 images for better accuracy)")
+    liveness_verified: bool = Field(False, description="Whether liveness detection was verified during registration")
+    challenge_type: Optional[str] = Field(None, description="Type of liveness challenge completed (blink, head_left, head_right, combined)")
 
 
 class FaceRegisterResponse(BaseModel):
@@ -33,13 +38,21 @@ class FaceRegisterResponse(BaseModel):
 
 class FaceStatusResponse(BaseModel):
     """Response model for face status"""
-    is_registered: bool
-    last_updated: Optional[datetime] = None
+    model_config = {
+        "populate_by_name": True,
+        "json_encoders": {datetime: lambda v: v.isoformat() if v else None}
+    }
+    
+    hasRegisteredFace: bool = Field(alias="is_registered")
+    lastUpdated: Optional[datetime] = Field(None, alias="last_updated")
     message: Optional[str] = None
+    
+    class Config:
+        populate_by_name = True
 
 
 @router.get("/status", response_model=FaceStatusResponse)
-async def get_face_status(user_id: str):
+async def get_face_status(user: CurrentUser = Depends(get_current_user)):
     """
     Check if a user has a registered face
     """
@@ -48,7 +61,7 @@ async def get_face_status(user_id: str):
         
         result = supabase.table("face_encodings").select(
             "updated_at, created_at"
-        ).eq("user_id", user_id).limit(1).execute()
+        ).eq("user_id", user.id).limit(1).execute()
         
         if result.data and len(result.data) > 0:
             record = result.data[0]
@@ -62,13 +75,13 @@ async def get_face_status(user_id: str):
                      pass
 
             return FaceStatusResponse(
-                is_registered=True,
+                is_registered=True,  # Use snake_case internally
                 last_updated=last_updated,
                 message="User has a registered face"
             )
             
         return FaceStatusResponse(
-            is_registered=False,
+            is_registered=False,  # Use snake_case internally
             message="User does not have a registered face"
         )
             
@@ -83,13 +96,14 @@ async def get_face_status(user_id: str):
 @router.post("/register", response_model=FaceRegisterResponse)
 async def register_face(request: FaceRegisterRequest):
     """
-    Register a face for a user
+    Register face(s) for a user with multiple embeddings support
     
-    - Validates exactly ONE face in image
-    - Generates face encoding
-    - Stores encoding in database
-    - Prevents duplicate face registration
-    - Rejects multiple users with same face
+    - Accepts 1-10 images for better accuracy
+    - Validates exactly ONE face per image
+    - Generates multiple face encodings (one per image)
+    - Stores all embeddings in database
+    - Supports liveness verification
+    - Prevents duplicate face registration across users
     """
     try:
         supabase = get_supabase()
@@ -112,15 +126,11 @@ async def register_face(request: FaceRegisterRequest):
                 detail=f"User role mismatch. Expected {request.role}, got {user['role']}"
             )
         
-        # Generate face encoding with quality validation
+        # Generate multiple face encodings
         try:
-            encoding, metadata = face_service.generate_encoding(request.base64_image)
-            # Log quality info for debugging
-            quality = metadata.get("quality", {})
+            encodings, metadatas = face_service.generate_multiple_encodings(request.base64_images)
             logger.info(
-                f"Face encoding generated for user {request.user_id}: "
-                f"quality_score={quality.get('quality_score', 0):.1f}, "
-                f"face_size={metadata.get('face_size', 0)}px"
+                f"Generated {len(encodings)} face encoding(s) for user {request.user_id} from {len(request.base64_images)} image(s)"
             )
         except ValueError as e:
             raise HTTPException(
@@ -128,36 +138,8 @@ async def register_face(request: FaceRegisterRequest):
                 detail=str(e)
             )
         
-        # Check if user already has face registered
-        existing_result = supabase.table("face_encodings").select("*").eq(
-            "user_id", request.user_id
-        ).maybe_single().execute()
-        
-        if existing_result.data:
-            # Update existing encoding with quality metrics
-            quality_score = metadata.get("quality", {}).get("quality_score")
-            face_size = metadata.get("face_size")
-            
-            update_data = {
-                "encoding_vector": encoding,
-                "updated_at": "now()"
-            }
-            
-            # Add quality metrics if available
-            if quality_score is not None:
-                update_data["quality_score"] = quality_score
-            if face_size is not None:
-                update_data["face_size"] = face_size
-            
-            update_result = supabase.table("face_encodings").update(update_data).eq("user_id", request.user_id).execute()
-            
-            logger.info(f"Updated face encoding for user {request.user_id}")
-            return FaceRegisterResponse(
-                success=True,
-                message="Face encoding updated successfully"
-            )
-        
         # Check if this face matches any existing user (prevent duplicate faces)
+        # Use first encoding for duplicate check
         all_encodings_result = supabase.table("face_encodings").select(
             "user_id, encoding_vector"
         ).execute()
@@ -166,7 +148,8 @@ async def register_face(request: FaceRegisterRequest):
             for existing_encoding_data in all_encodings_result.data:
                 try:
                     stored_encoding = existing_encoding_data["encoding_vector"]
-                    match, similarity, distance = face_service.compare_faces(stored_encoding, encoding)
+                    # Check first encoding against existing
+                    match, similarity, distance = face_service.compare_faces(stored_encoding, encodings[0])
                     
                     if match:
                         raise HTTPException(
@@ -174,37 +157,60 @@ async def register_face(request: FaceRegisterRequest):
                             detail=f"This face is already registered for another user. Similarity: {similarity:.2%}"
                         )
                 except Exception as e:
+                    if isinstance(e, HTTPException):
+                        raise
                     logger.warning(f"Error checking duplicate face: {str(e)}")
                     continue
         
-        # Extract quality metrics from metadata
-        quality_score = metadata.get("quality", {}).get("quality_score")
-        face_size = metadata.get("face_size")
+        # Delete old embeddings for this user (replace all)
+        delete_result = supabase.table("face_encodings").delete().eq("user_id", request.user_id).execute()
+        logger.info(f"Deleted {len(delete_result.data) if delete_result.data else 0} old embedding(s) for user {request.user_id}")
         
-        # Insert new face encoding with quality metrics
-        insert_data = {
-            "user_id": request.user_id,
-            "encoding_vector": encoding
-        }
+        # Find best quality embedding to mark as primary
+        best_quality_idx = 0
+        best_quality_score = 0
+        for idx, metadata in enumerate(metadatas):
+            quality_score = metadata.get("quality", {}).get("quality_score", 0)
+            if quality_score > best_quality_score:
+                best_quality_score = quality_score
+                best_quality_idx = idx
         
-        # Add quality metrics if available
-        if quality_score is not None:
-            insert_data["quality_score"] = quality_score
-        if face_size is not None:
-            insert_data["face_size"] = face_size
+        # Insert all encodings
+        insert_data_list = []
+        for idx, (encoding, metadata) in enumerate(zip(encodings, metadatas)):
+            quality = metadata.get("quality", {})
+            quality_score = quality.get("quality_score")
+            face_size = metadata.get("face_size")
+            registration_index = metadata.get("registration_index", idx + 1)
+            
+            insert_data = {
+                "user_id": request.user_id,
+                "encoding_vector": encoding,
+                "model_version": metadata.get("model_version", face_service.model_version),
+                "embedding_dimension": metadata.get("embedding_dimension", face_service.embedding_dimension),
+                "registration_index": registration_index,
+                "is_primary": (idx == best_quality_idx),
+                "liveness_verified": request.liveness_verified
+            }
+            
+            if quality_score is not None:
+                insert_data["quality_score"] = quality_score
+            if face_size is not None:
+                insert_data["face_size"] = face_size
+            
+            insert_data_list.append(insert_data)
         
-        insert_result = supabase.table("face_encodings").insert(insert_data).execute()
+        # Insert all embeddings in batch
+        insert_result = supabase.table("face_encodings").insert(insert_data_list).execute()
         
-        if not insert_result.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to store face encoding"
-            )
+        logger.info(
+            f"Registered {len(insert_data_list)} face encoding(s) for user {request.user_id} "
+            f"(primary: index {best_quality_idx + 1}, liveness: {request.liveness_verified})"
+        )
         
-        logger.info(f"Face registered successfully for user {request.user_id}")
         return FaceRegisterResponse(
             success=True,
-            message="Face registered successfully"
+            message=f"Face registered successfully with {len(encodings)} embedding(s)"
         )
     
     except HTTPException:
@@ -215,4 +221,3 @@ async def register_face(request: FaceRegisterRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"
         )
-

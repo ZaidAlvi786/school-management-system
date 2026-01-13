@@ -91,7 +91,9 @@ class AttendanceService:
         student_user_id: str,
         class_id: str,
         device_type: str = "web",
-        student_db_id: Optional[str] = None
+        student_db_id: Optional[str] = None,
+        confidence: Optional[float] = None,
+        liveness_verified: bool = False
     ) -> Dict[str, Any]:
         """
         Mark student attendance
@@ -138,6 +140,12 @@ class AttendanceService:
                 "device_type": device_type
             }
             
+            # Add confidence and liveness verification if provided
+            if confidence is not None:
+                attendance_data["confidence"] = confidence
+            if liveness_verified:
+                attendance_data["liveness_verified"] = True
+            
             # Add student_id if available (for backwards compatibility)
             if student_db_id:
                 attendance_data["student_id"] = student_db_id
@@ -160,7 +168,9 @@ class AttendanceService:
     def mark_teacher_attendance(
         self,
         teacher_id: str,
-        device_type: str = "web"
+        device_type: str = "web",
+        confidence: Optional[float] = None,
+        liveness_verified: bool = False
     ) -> Dict[str, Any]:
         """
         Mark teacher attendance
@@ -255,6 +265,12 @@ class AttendanceService:
                 # Ensure student_id is explicitly NULL for teachers
                 "student_id": None
             }
+            
+            # Add confidence and liveness verification if provided
+            if confidence is not None:
+                attendance_data["confidence"] = confidence
+            if liveness_verified:
+                attendance_data["liveness_verified"] = True
             
             # Optional: Add teacher_id if you have a teachers table
             # if teacher_db_id:

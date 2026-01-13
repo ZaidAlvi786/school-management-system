@@ -135,14 +135,89 @@ export default function FaceAttendanceDialog({
     }
   };
 
-  const startFaceDetection = useCallback(() => {
-    // Simple face detection loop - checks video frame quality
+  const faceDetectorRef = useRef<any | null>(null);
+
+  // Load MediaPipe Face Detector from CDN (to avoid build errors)
+  const loadMediaPipe = useCallback(async (): Promise<boolean> => {
+    try {
+      // Check if already loaded
+      if (faceDetectorRef.current) return true;
+      if ((window as any).mediapipeFaceDetector) {
+        faceDetectorRef.current = (window as any).mediapipeFaceDetector;
+        return true;
+      }
+
+      // Load MediaPipe from CDN using dynamic script injection
+      return new Promise((resolve) => {
+        const script = document.createElement("script");
+        script.type = "module";
+        script.textContent = `
+          import { FaceDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+          
+          (async function() {
+            try {
+              const vision = await FilesetResolver.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+              );
+              
+              const faceDetector = await FaceDetector.createFromOptions(vision, {
+                baseOptions: {
+                  modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/0.0.11/blaze_face_short_range.tflite',
+                  delegate: 'GPU',
+                },
+                runningMode: 'VIDEO',
+                minDetectionConfidence: 0.7,
+              });
+              
+              window.mediapipeFaceDetector = faceDetector;
+              window.mediapipeLoaded = true;
+              window.dispatchEvent(new CustomEvent('mediapipeLoaded'));
+            } catch (error) {
+              console.error('MediaPipe load error:', error);
+              window.mediapipeLoaded = false;
+              window.dispatchEvent(new CustomEvent('mediapipeLoaded'));
+            }
+          })();
+        `;
+        
+        const onLoaded = () => {
+          if ((window as any).mediapipeFaceDetector) {
+            faceDetectorRef.current = (window as any).mediapipeFaceDetector;
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        };
+        
+        window.addEventListener('mediapipeLoaded', onLoaded, { once: true });
+        document.head.appendChild(script);
+      });
+    } catch (error) {
+      console.error("Failed to load MediaPipe:", error);
+      return false;
+    }
+  }, []);
+
+  const startFaceDetection = useCallback(async () => {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
     }
 
+    // Load MediaPipe first
+    const loaded = await loadMediaPipe();
+    if (!loaded) {
+      setStatusMessage("Face detection unavailable. Using basic mode.");
+      // Fallback to basic detection if MediaPipe fails
+      detectionIntervalRef.current = setInterval(() => {
+        if (!videoRef.current || isProcessing) return;
+        setFaceDetected(false); // Don't show green until real face is detected
+        setStatusMessage("Position your face in the center");
+      }, 500);
+      return;
+    }
+
     detectionIntervalRef.current = setInterval(() => {
-      if (!videoRef.current || !canvasRef.current || isProcessing) return;
+      if (!videoRef.current || !canvasRef.current || isProcessing || !faceDetectorRef.current) return;
 
       try {
         const video = videoRef.current;
@@ -157,84 +232,120 @@ export default function FaceAttendanceDialog({
         if (!ctx) return;
         
         ctx.drawImage(video, 0, 0);
-        
-        // Get image data for quality check
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-        
-        // Calculate brightness and contrast
-        let totalBrightness = 0;
-        let minBrightness = 255;
-        let maxBrightness = 0;
-        
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          const brightness = (r + g + b) / 3;
-          totalBrightness += brightness;
-          minBrightness = Math.min(minBrightness, brightness);
-          maxBrightness = Math.max(maxBrightness, brightness);
-        }
-        
-        const avgBrightness = totalBrightness / (pixels.length / 4);
-        const contrast = maxBrightness - minBrightness;
-        
-        // Quality score (0-100)
-        let quality = 50;
-        if (avgBrightness > 50 && avgBrightness < 230) quality += 20;
-        if (contrast > 30) quality += 20;
-        if (canvas.width >= 640 && canvas.height >= 480) quality += 10;
-        
-        setImageQuality(quality);
-        
-        // Assume face is present if quality is reasonable
-        // Backend will do actual face detection
-        const detected = quality > 60;
-        setFaceDetected(detected);
-        
-        if (detected) {
-          setStatusMessage("Face detected! Ready to capture.");
-        } else if (quality < 40) {
-          setStatusMessage("Improve lighting and position your face clearly");
+
+        // Use MediaPipe for actual face detection
+        const startTimeMs = performance.now();
+        const detections = faceDetectorRef.current.detectForVideo(video, startTimeMs);
+
+        if (detections.detections && detections.detections.length > 0) {
+          // Get the best detection (highest confidence)
+          const bestDetection = detections.detections.reduce(
+            (best: any, current: any) =>
+              (current.score || 0) > (best.score || 0) ? current : best
+          );
+
+          const confidence = bestDetection.score || 0;
+          
+          // Only consider it detected if confidence is high (>= 0.7) and exactly one face
+          const detected = detections.detections.length === 1 && confidence >= 0.7;
+          
+          setFaceDetected(detected);
+          setImageQuality(Math.round(confidence * 100));
+
+          if (detected) {
+            setStatusMessage("Face detected! Ready to capture.");
+          } else if (detections.detections.length > 1) {
+            setStatusMessage("Multiple faces detected. Please ensure only your face is visible.");
+          } else if (confidence < 0.7) {
+            setStatusMessage("Face confidence too low. Please move closer and improve lighting.");
+          } else {
+            setStatusMessage("Position your face in the center of the frame");
+          }
         } else {
-          setStatusMessage("Position your face in the center of the frame");
+          // No face detected
+          setFaceDetected(false);
+          setImageQuality(0);
+          setStatusMessage("No face detected. Please position your face in the camera.");
         }
       } catch (err) {
         console.error("Face detection error:", err);
+        setFaceDetected(false);
+        setImageQuality(0);
       }
-    }, 500); // Check every 500ms
-  }, [isProcessing]);
+    }, 200); // Check every 200ms for real-time feedback
+  }, [isProcessing, loadMediaPipe]);
 
   const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current || isProcessing) return;
 
+    // SECURITY: Only allow capture if face is actually detected by MediaPipe
+    if (!faceDetected) {
+      toast({
+        title: "Face Not Detected",
+        description: "Please ensure your face is clearly visible in the frame before capturing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const video = videoRef.current;
-      const canvas = canvasRef.current;
+    const canvas = canvasRef.current;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       
       ctx.drawImage(video, 0, 0);
       
+      // Verify face is still present using MediaPipe before capture
+      if (faceDetectorRef.current) {
+        try {
+          const startTimeMs = performance.now();
+          const detections = faceDetectorRef.current.detectForVideo(video, startTimeMs);
+          
+          if (!detections.detections || detections.detections.length === 0) {
+            toast({
+              title: "Face Not Detected",
+              description: "Face not detected in frame. Please ensure your face is visible.",
+              variant: "destructive",
+            });
+            return;
+          }
+          
+          // Ensure exactly one face with high confidence
+          const bestDetection = detections.detections.reduce(
+            (best: any, current: any) =>
+              (current.score || 0) > (best.score || 0) ? current : best
+          );
+          
+          if (detections.detections.length > 1) {
+            toast({
+              title: "Multiple Faces Detected",
+              description: "Please ensure only your face is visible in the frame.",
+              variant: "destructive",
+            });
+            return;
+          }
+          
+          if ((bestDetection.score || 0) < 0.7) {
+            toast({
+              title: "Low Face Confidence",
+              description: "Face confidence too low. Please move closer and ensure good lighting.",
+              variant: "destructive",
+            });
+            return;
+          }
+        } catch (err) {
+          console.error("Face verification error:", err);
+          // Continue with capture if MediaPipe fails (backend will verify)
+        }
+      }
+      
       // Capture at high quality
       const imageData = canvas.toDataURL("image/jpeg", 0.95);
-      
-      // Check image quality before proceeding
-      const detection = await detectFaceInImage(imageData);
-      
-      if (!detection.detected || detection.quality < 50) {
-        toast({
-          title: "Poor Image Quality",
-          description: "Please ensure good lighting and a clear view of your face.",
-          variant: "destructive",
-        });
-        return;
-      }
       
       setCapturedImage(imageData);
       setScanning(false);
@@ -262,11 +373,15 @@ export default function FaceAttendanceDialog({
 
       // Mark attendance via FastAPI
       // Note: class_id is optional for students - backend will auto-fetch from student record
+      // Liveness verification is optional but recommended for security
       const result = await markAttendance(
         imgData,
         session.user.role as "student" | "teacher",
         classId, // Optional - will be validated/fetched automatically by backend
-        "web"
+        "web",
+        false, // liveness_verified - set to true if liveness challenge completed
+        undefined, // liveness_images - optional sequence of images for liveness
+        undefined // challenge_type - optional: "blink", "head_left", "head_right", "combined"
       );
 
       if (result.already_marked) {
@@ -328,6 +443,7 @@ export default function FaceAttendanceDialog({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    // Note: Keep faceDetectorRef for reuse, but reset detection state
     setCapturedImage(null);
     setFaceDetected(false);
     setImageQuality(0);

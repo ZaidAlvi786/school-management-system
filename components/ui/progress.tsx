@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -12,14 +14,14 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
     <div
       ref={ref}
       className={cn(
-        "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
+        "relative h-2 w-full overflow-hidden rounded-full bg-gray-200",
         className
       )}
       {...props}
     >
       <div
         className={cn(
-          "h-full bg-primary transition-all duration-300 ease-in-out",
+          "h-full bg-blue-500 transition-all duration-300 ease-in-out",
           indicatorClassName
         )}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
