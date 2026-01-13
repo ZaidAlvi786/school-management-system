@@ -37,6 +37,7 @@ export default function FaceRegistrationDialogEnhanced({
   const faceDetectorRef = useRef<any | null>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const livenessFramesRef = useRef<string[]>([]);
+  const capturedImagesRef = useRef<string[]>([]);
   
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -223,6 +224,7 @@ export default function FaceRegistrationDialogEnhanced({
     if (open) {
       setStep("capture");
       setCapturedImages([]);
+      capturedImagesRef.current = [];
       setCurrentImageIndex(0);
       setLivenessVerified(false);
       setLivenessFrames([]);
@@ -232,6 +234,11 @@ export default function FaceRegistrationDialogEnhanced({
       stopCamera();
     };
   }, [open]);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    capturedImagesRef.current = capturedImages;
+  }, [capturedImages]);
 
   const startCamera = async () => {
     try {
@@ -258,7 +265,7 @@ export default function FaceRegistrationDialogEnhanced({
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         await videoRef.current.play();
-        setStatusMessage(`Position your face in the center (Image 1/${TARGET_IMAGES})`);
+        setStatusMessage(`Position your face in the center (1/${TARGET_IMAGES})`);
         startFaceDetection();
       }
     } catch (err: any) {
@@ -277,6 +284,9 @@ export default function FaceRegistrationDialogEnhanced({
       clearInterval(detectionIntervalRef.current);
     }
 
+    let lastStatusUpdate = 0;
+    const STATUS_UPDATE_THROTTLE = 500; // Update status max once per 500ms
+
     detectionIntervalRef.current = setInterval(() => {
       if (!videoRef.current || !canvasRef.current || isProcessing || !faceDetectorRef.current) return;
 
@@ -294,13 +304,19 @@ export default function FaceRegistrationDialogEnhanced({
         
         ctx.drawImage(video, 0, 0);
 
+        // Get current captured count from ref (always up-to-date)
+        const capturedCount = capturedImagesRef.current.length;
+        const nextIndex = capturedCount + 1;
+
         // Check if using fallback detection
         if (faceDetectorRef.current.useFallback) {
           // Fallback: Always allow capture (backend will validate)
           setFaceDetected(true);
           setDetectionConfidence(0.8);
-          if (step === "capture") {
-            setStatusMessage(`Ready to capture (${currentImageIndex + 1}/${TARGET_IMAGES})`);
+          // Only update status if enough time has passed
+          if (step === "capture" && Date.now() - lastStatusUpdate > STATUS_UPDATE_THROTTLE) {
+            setStatusMessage(`Ready to capture (${nextIndex}/${TARGET_IMAGES})`);
+            lastStatusUpdate = Date.now();
           }
           return;
         }
@@ -321,16 +337,22 @@ export default function FaceRegistrationDialogEnhanced({
           setFaceDetected(detected);
           setDetectionConfidence(confidence);
 
-          if (detected && step === "capture") {
-            setStatusMessage(`Face detected! Ready to capture (${currentImageIndex + 1}/${TARGET_IMAGES})`);
-          } else if (step === "capture") {
-            setStatusMessage("Position your face in the center");
+          // Only update status message if enough time has passed (throttle)
+          if (step === "capture" && Date.now() - lastStatusUpdate > STATUS_UPDATE_THROTTLE) {
+            if (detected) {
+              setStatusMessage(`Face detected! Ready to capture (${nextIndex}/${TARGET_IMAGES})`);
+            } else {
+              setStatusMessage(`Position your face in the center (${nextIndex}/${TARGET_IMAGES})`);
+            }
+            lastStatusUpdate = Date.now();
           }
         } else {
           setFaceDetected(false);
           setDetectionConfidence(0);
-          if (step === "capture") {
-            setStatusMessage("Position your face in the center");
+          // Only update status if enough time has passed
+          if (step === "capture" && Date.now() - lastStatusUpdate > STATUS_UPDATE_THROTTLE) {
+            setStatusMessage(`Position your face in the center (${nextIndex}/${TARGET_IMAGES})`);
+            lastStatusUpdate = Date.now();
           }
         }
       } catch (err) {
@@ -341,7 +363,7 @@ export default function FaceRegistrationDialogEnhanced({
         }
       }
     }, 200);
-  }, [isProcessing, step, currentImageIndex]);
+  }, [isProcessing, step]);
 
   const capturePhoto = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || isProcessing) return;
@@ -411,13 +433,14 @@ export default function FaceRegistrationDialogEnhanced({
       
       // Continue capturing or move to liveness
       if (newImages.length < TARGET_IMAGES) {
-        setStatusMessage(`Captured ${newImages.length}/${TARGET_IMAGES}. Position your face for the next image.`);
-        // Auto-capture next image after 2 seconds
+        const nextIndex = newImages.length + 1;
+        setStatusMessage(`Captured ${newImages.length}/${TARGET_IMAGES}. Position your face for image ${nextIndex}/${TARGET_IMAGES}.`);
+        setFaceDetected(false);
+        setDetectionConfidence(0);
+        // Small delay before re-enabling detection status
         setTimeout(() => {
-          if (faceDetected && newImages.length < TARGET_IMAGES) {
-            capturePhoto();
-          }
-        }, 2000);
+          setStatusMessage(`Position your face in the center (${nextIndex}/${TARGET_IMAGES})`);
+        }, 1000);
       } else {
         // All images captured, move to liveness
         setStatusMessage("All images captured! Now verify liveness...");
