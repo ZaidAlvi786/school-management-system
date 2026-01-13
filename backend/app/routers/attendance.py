@@ -2,7 +2,7 @@
 Attendance marking endpoints
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 import logging
@@ -11,12 +11,16 @@ from app.services.face_recognition_service import FaceRecognitionService
 from app.services.attendance_service import AttendanceService
 from app.core.database import get_supabase
 from app.core.config import settings
+from app.core.auth import get_current_user, CurrentUser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-face_service = FaceRecognitionService(tolerance=settings.FACE_TOLERANCE)
+# Use stricter tolerance (0.4 instead of 0.6) for security
+# Lower tolerance = more strict matching (fewer false positives)
+face_service = FaceRecognitionService(tolerance=min(settings.FACE_TOLERANCE, 0.4))
 attendance_service = AttendanceService()
+liveness_service = LivenessService()
 
 
 class AttendanceMarkRequest(BaseModel):
@@ -25,6 +29,9 @@ class AttendanceMarkRequest(BaseModel):
     role: Literal["student", "teacher"] = Field(..., description="User role")
     class_id: Optional[str] = Field(None, description="Class ID (required for students)")
     device_type: str = Field("web", description="Device type (web/mobile)")
+    liveness_verified: bool = Field(False, description="Whether liveness detection was verified")
+    liveness_images: Optional[List[str]] = Field(None, description="Optional: Sequence of images for liveness verification")
+    challenge_type: Optional[str] = Field(None, description="Type of liveness challenge completed")
 
 
 class AttendanceMarkResponse(BaseModel):
@@ -40,13 +47,20 @@ class AttendanceMarkResponse(BaseModel):
 
 
 @router.post("/mark", response_model=AttendanceMarkResponse)
-async def mark_attendance(request: AttendanceMarkRequest):
+async def mark_attendance(
+    request: AttendanceMarkRequest,
+    user: CurrentUser = Depends(get_current_user)
+):
     """
     Mark attendance using face recognition
     
+    SECURITY: Verifies that the detected face belongs to the authenticated user.
+    Only the authenticated user can mark their own attendance.
+    
+    - Requires authentication
     - Detects face in image
-    - Matches face encoding with stored encodings
-    - Identifies user
+    - Matches face encoding with authenticated user's stored encoding ONLY
+    - Verifies match belongs to authenticated user (security check)
     - Applies role-based rules:
       - Student → per class per day
       - Teacher → once per day
@@ -56,8 +70,12 @@ async def mark_attendance(request: AttendanceMarkRequest):
     try:
         supabase = get_supabase()
         
-        # Note: class_id is optional for students - will be auto-fetched from student record
-        # If provided, it will be validated against student's actual class
+        # SECURITY: Verify user role matches request role
+        if user.role != request.role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User role '{user.role}' does not match request role '{request.role}'"
+            )
         
         # Generate face encoding from image with quality validation
         try:
@@ -65,7 +83,7 @@ async def mark_attendance(request: AttendanceMarkRequest):
             # Log quality info for debugging
             quality = metadata.get("quality", {})
             logger.info(
-                f"Face encoding generated for attendance: "
+                f"Face encoding generated for attendance (user_id={user.id}): "
                 f"quality_score={quality.get('quality_score', 0):.1f}, "
                 f"face_size={metadata.get('face_size', 0)}px, "
                 f"warnings={quality.get('warnings', [])}"
@@ -76,54 +94,99 @@ async def mark_attendance(request: AttendanceMarkRequest):
                 detail=str(e)
             )
         
-        # Get all face encodings for the specified role
-        encodings_result = supabase.table("face_encodings").select(
-            "user_id, encoding_vector"
-        ).execute()
+        # SECURITY: Get ALL face encodings for the authenticated user
+        # Supports multiple embeddings per user for better accuracy
+        encoding_result = supabase.table("face_encodings").select(
+            "id, user_id, encoding_vector, registration_index, is_primary, quality_score"
+        ).eq("user_id", user.id).execute()
         
-        if not encodings_result.data:
+        if not encoding_result.data or len(encoding_result.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No face encodings found in database"
+                detail="Face not registered. Please register your face first."
             )
         
-        # Filter by role
-        user_ids = [e["user_id"] for e in encodings_result.data]
-        users_result = supabase.table("users").select("id, role").in_(
-            "id", user_ids
-        ).eq("role", request.role).execute()
-        
-        if not users_result.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No {request.role} users with registered faces found"
-            )
-        
-        valid_user_ids = {u["id"] for u in users_result.data}
-        
-        # Filter encodings by valid user IDs
-        valid_encodings = [
+        # Prepare encodings list for matching (supports multiple embeddings)
+        user_encodings = [
             {
-                "user_id": e["user_id"],
-                "encoding": e["encoding_vector"]
+                'user_id': enc['user_id'],
+                'encoding': enc['encoding_vector'],
+                'registration_index': enc.get('registration_index', 0),
+                'is_primary': enc.get('is_primary', False),
+                'quality_score': enc.get('quality_score', 0)
             }
-            for e in encodings_result.data
-            if e["user_id"] in valid_user_ids
+            for enc in encoding_result.data
         ]
         
-        # Find matching user
-        match_result = face_service.find_matching_user(unknown_encoding, valid_encodings)
+        logger.info(f"Comparing against {len(user_encodings)} embedding(s) for user {user.id}")
+        
+        # CRITICAL: Compare with ALL embeddings for this user, use best match
+        # This improves accuracy by comparing against multiple registered images
+        match_result = face_service.find_matching_user(
+            unknown_encoding, 
+            user_encodings,
+            min_confidence=0.75,  # 75% similarity required
+            use_best_of_multiple=True  # Use best match across all embeddings
+        )
         
         if not match_result:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Face not recognized. Please ensure you have registered your face."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Face does not match your registered face. Please ensure you are showing your own face clearly."
             )
         
-        user_id = match_result["user_id"]
-        confidence = match_result["similarity"]
+        # Verify matched user is the authenticated user (security check)
+        if match_result['user_id'] != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Face match verification failed. User ID mismatch."
+            )
         
-        logger.info(f"Face matched: user_id={user_id}, confidence={confidence:.4f}")
+        similarity = match_result['similarity']
+        confidence = similarity
+        
+        # Log comparison details
+        logger.info(
+            f"Face comparison for user_id={user.id}: "
+            f"match={match}, similarity={similarity:.4f}, distance={distance:.4f}"
+        )
+        
+        # Optional: Verify liveness if provided
+        liveness_passed = False
+        if request.liveness_verified and request.liveness_images:
+            try:
+                liveness_result = liveness_service.verify_liveness_from_base64(
+                    challenge_type=request.challenge_type or 'combined',
+                    base64_images=request.liveness_images
+                )
+                liveness_passed = liveness_result.get('challenge_passed', False)
+                
+                # Log liveness attempt
+                supabase.table("liveness_attempts").insert({
+                    "user_id": user.id,
+                    "attempt_type": "attendance",
+                    "challenge_type": request.challenge_type or 'combined',
+                    "success": liveness_passed,
+                    "confidence": liveness_result.get('confidence', 0.0),
+                    "metadata": liveness_result.get('details', {})
+                }).execute()
+                
+                if not liveness_passed:
+                    logger.warning(f"Liveness check failed for user {user.id}: {liveness_result.get('details', {})}")
+                    # Don't reject attendance for liveness failure, but log it
+                    # In production, you might want to require liveness
+            except Exception as e:
+                logger.error(f"Liveness verification error: {str(e)}")
+                # Continue without liveness if verification fails
+        
+        user_id = user.id  # Use authenticated user ID (security)
+        
+        logger.info(
+            f"Face verified for user_id={user_id}, "
+            f"confidence={confidence:.4f}, "
+            f"matched_embedding_index={match_result.get('matched_embedding_index')}, "
+            f"liveness_passed={liveness_passed}"
+        )
         
         # Mark attendance based on role
         if request.role == "student":
@@ -186,7 +249,9 @@ async def mark_attendance(request: AttendanceMarkRequest):
             # Mark teacher attendance
             result = attendance_service.mark_teacher_attendance(
                 user_id,
-                request.device_type
+                request.device_type,
+                confidence=confidence,
+                liveness_verified=liveness_passed
             )
             
             if result.get("already_marked"):
