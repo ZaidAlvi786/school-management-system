@@ -98,6 +98,9 @@ export interface AttendanceMarkRequest {
   role: "student" | "teacher";
   class_id?: string;
   device_type?: string;
+  liveness_verified?: boolean;
+  liveness_images?: string[];
+  challenge_type?: "blink" | "head_left" | "head_right" | "combined";
 }
 
 export interface AttendanceMarkResponse {
