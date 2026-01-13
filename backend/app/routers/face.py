@@ -40,15 +40,19 @@ class FaceStatusResponse(BaseModel):
     """Response model for face status"""
     model_config = {
         "populate_by_name": True,
-        "json_encoders": {datetime: lambda v: v.isoformat() if v else None}
+        "json_encoders": {datetime: lambda v: v.isoformat() if v else None},
+        "json_schema_extra": {
+            "example": {
+                "hasRegisteredFace": True,
+                "lastUpdated": "2024-01-01T00:00:00Z",
+                "message": "User has a registered face"
+            }
+        }
     }
     
     hasRegisteredFace: bool = Field(alias="is_registered")
     lastUpdated: Optional[datetime] = Field(None, alias="last_updated")
     message: Optional[str] = None
-    
-    class Config:
-        populate_by_name = True
 
 
 @router.get("/status", response_model=FaceStatusResponse)
