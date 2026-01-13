@@ -134,11 +134,22 @@ async def register_face(request: FaceRegisterRequest):
         ).maybe_single().execute()
         
         if existing_result.data:
-            # Update existing encoding
-            update_result = supabase.table("face_encodings").update({
+            # Update existing encoding with quality metrics
+            quality_score = metadata.get("quality", {}).get("quality_score")
+            face_size = metadata.get("face_size")
+            
+            update_data = {
                 "encoding_vector": encoding,
                 "updated_at": "now()"
-            }).eq("user_id", request.user_id).execute()
+            }
+            
+            # Add quality metrics if available
+            if quality_score is not None:
+                update_data["quality_score"] = quality_score
+            if face_size is not None:
+                update_data["face_size"] = face_size
+            
+            update_result = supabase.table("face_encodings").update(update_data).eq("user_id", request.user_id).execute()
             
             logger.info(f"Updated face encoding for user {request.user_id}")
             return FaceRegisterResponse(
@@ -166,11 +177,23 @@ async def register_face(request: FaceRegisterRequest):
                     logger.warning(f"Error checking duplicate face: {str(e)}")
                     continue
         
-        # Insert new face encoding
-        insert_result = supabase.table("face_encodings").insert({
+        # Extract quality metrics from metadata
+        quality_score = metadata.get("quality", {}).get("quality_score")
+        face_size = metadata.get("face_size")
+        
+        # Insert new face encoding with quality metrics
+        insert_data = {
             "user_id": request.user_id,
             "encoding_vector": encoding
-        }).execute()
+        }
+        
+        # Add quality metrics if available
+        if quality_score is not None:
+            insert_data["quality_score"] = quality_score
+        if face_size is not None:
+            insert_data["face_size"] = face_size
+        
+        insert_result = supabase.table("face_encodings").insert(insert_data).execute()
         
         if not insert_result.data:
             raise HTTPException(

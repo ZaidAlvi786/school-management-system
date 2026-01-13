@@ -38,6 +38,7 @@ export default function StudentAttendancePage() {
   const [showRegistrationDialog, setShowRegistrationDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
   const [isTodayMarked, setIsTodayMarked] = useState(false);
+  const [studentClassId, setStudentClassId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -52,8 +53,25 @@ export default function StudentAttendancePage() {
     if (status === "authenticated") {
       fetchAttendance();
       checkFaceRegistration();
+      fetchStudentInfo();
     }
   }, [status]);
+
+  const fetchStudentInfo = async () => {
+    try {
+      const { getStudentInfo } = await import("@/lib/fastapi-client");
+      const data: any = await getStudentInfo();
+      // API returns classId (camelCase) directly, or class_ object
+      if (data?.classId) {
+        setStudentClassId(data.classId);
+      } else if (data?.class_?.id) {
+        setStudentClassId(data.class_.id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch student info:", error);
+      // Continue without class_id - backend will fetch it automatically
+    }
+  };
 
   const checkFaceRegistration = async () => {
     try {
@@ -408,6 +426,7 @@ export default function StudentAttendancePage() {
             description: "Your attendance has been marked successfully!",
           });
         }}
+        classId={studentClassId || undefined}
       />
     </div>
   );
