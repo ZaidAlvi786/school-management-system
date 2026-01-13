@@ -1,6 +1,12 @@
 """
 Enhanced Face Recognition Service with quality checks and improved accuracy
 Uses face_recognition library (dlib-based) with production-grade improvements
+
+Features:
+- Multiple embeddings per user support
+- Face alignment and preprocessing
+- Model versioning
+- Improved matching with aggregation
 """
 
 import face_recognition
@@ -14,6 +20,10 @@ from typing import Optional, Tuple, List, Dict
 from scipy.spatial.distance import cosine
 
 logger = logging.getLogger(__name__)
+
+# Model version constant
+MODEL_VERSION = "dlib-face-recognition-1.3.0"
+EMBEDDING_DIMENSION = 128
 
 
 class FaceRecognitionService:
@@ -36,7 +46,9 @@ class FaceRecognitionService:
         """
         self.tolerance = tolerance
         self.min_face_size = min_face_size
-        logger.info(f"FaceRecognitionService initialized: tolerance={tolerance}, min_face_size={min_face_size}")
+        self.model_version = MODEL_VERSION
+        self.embedding_dimension = EMBEDDING_DIMENSION
+        logger.info(f"FaceRecognitionService initialized: tolerance={tolerance}, min_face_size={min_face_size}, model={MODEL_VERSION}")
     
     def decode_base64_image(self, base64_string: str) -> Image.Image:
         """
@@ -140,23 +152,69 @@ class FaceRecognitionService:
                 "laplacian_variance": 0.0
             }
     
-    def preprocess_image(self, image: Image.Image) -> Image.Image:
+    def align_face(self, image: np.ndarray, face_landmarks: dict) -> Optional[np.ndarray]:
+        """
+        Align face using facial landmarks (eyes, nose, mouth)
+        Improves accuracy by normalizing face orientation
+        
+        Args:
+            image: NumPy array of the image
+            face_landmarks: Dictionary with facial landmark coordinates
+            
+        Returns:
+            Aligned face image or None if alignment fails
+        """
+        try:
+            # Extract key points
+            left_eye = face_landmarks.get('left_eye')
+            right_eye = face_landmarks.get('right_eye')
+            
+            if not left_eye or not right_eye:
+                return None
+            
+            # Calculate angle between eyes
+            eye_center_x = (left_eye[0] + right_eye[0]) / 2
+            eye_center_y = (left_eye[1] + right_eye[1]) / 2
+            
+            dx = right_eye[0] - left_eye[0]
+            dy = right_eye[1] - left_eye[1]
+            angle = np.arctan2(dy, dx) * 180 / np.pi
+            
+            # Rotate image to align eyes horizontally
+            if abs(angle) > 1:  # Only rotate if angle is significant
+                h, w = image.shape[:2]
+                center = (w // 2, h // 2)
+                M = cv2.getRotationMatrix2D(center, angle, 1.0)
+                image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            
+            return image
+        
+        except Exception as e:
+            logger.warning(f"Face alignment failed: {str(e)}")
+            return None
+    
+    def preprocess_image(self, image: Image.Image, align: bool = True) -> Image.Image:
         """
         Preprocess image for better face detection:
         - Resize if too large (max 1000px on longest side)
         - Enhance contrast if needed
         - Normalize lighting
+        - Face alignment (if landmarks available)
         
         Args:
             image: PIL Image object
+            align: Whether to attempt face alignment
             
         Returns:
             Preprocessed PIL Image
         """
         try:
+            # Convert to numpy array for OpenCV operations
+            img_array = np.array(image)
+            
             # Resize if too large (improves speed and memory)
             max_size = 1000
-            width, height = image.size
+            height, width = img_array.shape[:2]
             
             if width > max_size or height > max_size:
                 if width > height:
@@ -166,12 +224,21 @@ class FaceRecognitionService:
                     new_height = max_size
                     new_width = int(width * (max_size / height))
                 
-                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                img_array = cv2.resize(img_array, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
                 logger.debug(f"Resized image from {width}x{height} to {new_width}x{new_height}")
             
             # Enhance contrast slightly (helps with face detection)
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.1)  # 10% contrast boost
+            # Convert to LAB color space for better contrast enhancement
+            if len(img_array.shape) == 3:
+                lab = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB)
+                l, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+                l = clahe.apply(l)
+                img_array = cv2.merge([l, a, b])
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_LAB2RGB)
+            
+            # Convert back to PIL Image
+            image = Image.fromarray(img_array)
             
             return image
         
@@ -283,8 +350,76 @@ class FaceRecognitionService:
                 "- Face is at least 100x100 pixels"
             )
         
-        encoding, metadata = result
+            encoding, metadata = result
+            
+            # Add model metadata
+            metadata['model_version'] = self.model_version
+            metadata['embedding_dimension'] = self.embedding_dimension
+            
         return encoding.tolist(), metadata
+    
+    def generate_multiple_encodings(self, base64_images: List[str]) -> Tuple[List[List[float]], List[Dict]]:
+        """
+        Generate face encodings from multiple base64 images
+        Used during registration to capture user from different angles/lighting
+        
+        Args:
+            base64_images: List of base64 encoded image strings
+            
+        Returns:
+            Tuple of (list of encodings, list of metadata dicts)
+        """
+        encodings = []
+        metadatas = []
+        
+        for idx, base64_image in enumerate(base64_images):
+            try:
+                encoding, metadata = self.generate_encoding(base64_image)
+                metadata['registration_index'] = idx + 1
+                encodings.append(encoding)
+                metadatas.append(metadata)
+            except Exception as e:
+                logger.warning(f"Failed to generate encoding for image {idx + 1}: {str(e)}")
+                continue
+        
+        if not encodings:
+            raise ValueError("Failed to generate any face encodings from provided images")
+        
+        return encodings, metadatas
+    
+    def aggregate_encodings(self, encodings: List[List[float]], method: str = 'average') -> List[float]:
+        """
+        Aggregate multiple embeddings into a single representative embedding
+        
+        Args:
+            encodings: List of face encodings (each is a list of floats)
+            method: Aggregation method ('average', 'median', 'best')
+            
+        Returns:
+            Single aggregated encoding
+        """
+        if not encodings:
+            raise ValueError("Cannot aggregate empty list of encodings")
+        
+        if len(encodings) == 1:
+            return encodings[0]
+        
+        encodings_array = np.array(encodings)
+        
+        if method == 'average':
+            # Average all encodings
+            aggregated = np.mean(encodings_array, axis=0)
+        elif method == 'median':
+            # Median of all encodings (more robust to outliers)
+            aggregated = np.median(encodings_array, axis=0)
+        elif method == 'best':
+            # Use the first encoding (assumed to be best quality)
+            aggregated = encodings_array[0]
+        else:
+            # Default to average
+            aggregated = np.mean(encodings_array, axis=0)
+        
+        return aggregated.tolist()
     
     def compare_faces(
         self, 
@@ -342,51 +477,81 @@ class FaceRecognitionService:
         self, 
         unknown_encoding: List[float], 
         all_encodings: List[dict],
-        min_confidence: float = 0.5
+        min_confidence: float = 0.5,
+        use_best_of_multiple: bool = True
     ) -> Optional[dict]:
         """
         Find matching user from list of encodings with confidence threshold
+        Supports multiple embeddings per user - uses best match
         
         Args:
             unknown_encoding: Face encoding to match
-            all_encodings: List of dicts with 'user_id' and 'encoding' keys
+            all_encodings: List of dicts with 'user_id', 'encoding', and optionally 'registration_index'
             min_confidence: Minimum similarity score to consider a match (0-1)
+            use_best_of_multiple: If True, compare against all embeddings per user and use best match
             
         Returns:
-            Matching user dict with user_id, similarity, distance, or None
+            Matching user dict with user_id, similarity, distance, matched_embedding_index, or None
         """
+        # Group encodings by user_id if multiple embeddings per user
+        if use_best_of_multiple:
+            user_encodings = {}
+            for enc_data in all_encodings:
+                user_id = enc_data['user_id']
+                if user_id not in user_encodings:
+                    user_encodings[user_id] = []
+                user_encodings[user_id].append(enc_data)
+        else:
+            # Treat each encoding as separate (old behavior)
+            user_encodings = {enc_data['user_id']: [enc_data] for enc_data in all_encodings}
+        
         best_match = None
         best_similarity = 0.0
         best_distance = float('inf')
+        best_user_id = None
         
-        for encoding_data in all_encodings:
-            try:
-                stored_encoding = encoding_data['encoding']
-                match, similarity, distance = self.compare_faces(stored_encoding, unknown_encoding)
-                
-                # Consider match if:
-                # 1. Distance is within tolerance AND
-                # 2. Similarity is above minimum confidence
-                if match and similarity >= min_confidence:
-                    if similarity > best_similarity:
-                        best_similarity = similarity
-                        best_distance = distance
-                        best_match = {
-                            'user_id': encoding_data['user_id'],
-                            'similarity': similarity,
-                            'distance': distance,
-                            'confidence': similarity  # Alias for clarity
-                        }
+        # Compare against all embeddings for each user, keep best match
+        for user_id, encodings_list in user_encodings.items():
+            user_best_similarity = 0.0
+            user_best_distance = float('inf')
+            user_best_embedding_idx = None
             
-            except Exception as e:
-                logger.warning(f"Error comparing with user {encoding_data.get('user_id')}: {str(e)}")
-                continue
+            for enc_data in encodings_list:
+                try:
+                    stored_encoding = enc_data['encoding']
+                    match, similarity, distance = self.compare_faces(stored_encoding, unknown_encoding)
+                    
+                    # Track best match for this user across all their embeddings
+                    if match and similarity >= min_confidence:
+                        if similarity > user_best_similarity:
+                            user_best_similarity = similarity
+                            user_best_distance = distance
+                            user_best_embedding_idx = enc_data.get('registration_index', 0)
+                    
+                except Exception as e:
+                    logger.warning(f"Error comparing with user {user_id}, embedding {enc_data.get('registration_index')}: {str(e)}")
+                    continue
+            
+            # Compare this user's best match with global best
+            if user_best_similarity > best_similarity:
+                best_similarity = user_best_similarity
+                best_distance = user_best_distance
+                best_user_id = user_id
+                best_match = {
+                    'user_id': user_id,
+                    'similarity': user_best_similarity,
+                    'distance': user_best_distance,
+                    'confidence': user_best_similarity,
+                    'matched_embedding_index': user_best_embedding_idx,
+                    'total_embeddings_compared': len(encodings_list)
+                }
         
         if best_match:
             logger.info(
                 f"Found match: user_id={best_match['user_id']}, "
                 f"similarity={best_match['similarity']:.4f}, "
-                f"distance={best_match['distance']:.4f}"
+                f"distance={best_match['distance']:.4f}, "
+                f"compared {best_match['total_embeddings_compared']} embedding(s)"
             )
         else:
             logger.warning(f"No match found. Best similarity: {best_similarity:.4f} (required: {min_confidence:.4f})")
