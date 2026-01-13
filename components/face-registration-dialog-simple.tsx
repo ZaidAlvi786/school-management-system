@@ -198,8 +198,9 @@ export default function FaceRegistrationDialog({
       const detections = faceDetectorRef.current.detectForVideo(video, startTimeMs);
 
       if (detections.detections && detections.detections.length > 0) {
-        const bestDetection = detections.detections.reduce((best, current) =>
-          (current.score || 0) > (best.score || 0) ? current : best
+        const bestDetection = detections.detections.reduce(
+          (best: any, current: any) =>
+            (current.score || 0) > (best.score || 0) ? current : best
         );
 
         const confidence = bestDetection.score || 0;
